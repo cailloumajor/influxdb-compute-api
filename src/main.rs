@@ -6,6 +6,7 @@ use influxdb_compute_api::CommonArgs;
 
 mod influxdb;
 mod level_filter;
+mod model;
 
 use level_filter::VerbosityLevelFilter;
 use tracing_log::LogTracer;

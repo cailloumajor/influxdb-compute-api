@@ -1,19 +1,21 @@
 use std::io;
 
+use arcstr::ArcStr;
+use chrono::{DateTime, Utc};
 use clap::Args;
 use csv_async::AsyncReaderBuilder;
 use futures_util::{Stream, TryStreamExt};
+use hex_color::HexColor;
 use reqwest::header::{self, HeaderMap};
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use tracing::{error, instrument};
+use tokio::sync::{mpsc, oneshot};
+use tokio::task::{spawn_blocking, JoinHandle};
+use tracing::{error, info, info_span, instrument, Instrument};
 use url::Url;
 
-#[derive(Deserialize)]
-struct QueryResponse {
-    message: String,
-}
+use crate::model::TimelineSlot;
 
 #[derive(Args)]
 #[group(skip)]
@@ -33,12 +35,35 @@ pub(crate) struct Config {
     /// InfluxDB bucket
     #[arg(env, long)]
     influxdb_bucket: String,
+
+    /// InfluxDB measurement
+    #[arg(env, long)]
+    influxdb_measurement: String,
 }
 
+pub(crate) struct TimelineRequest {
+    id: String,
+    response: oneshot::Sender<Vec<TimelineSlot>>,
+}
+
+#[derive(Deserialize)]
+struct QueryResponse {
+    message: String,
+}
+
+#[derive(Deserialize)]
+struct TimelineRow {
+    #[serde(rename = "_time")]
+    time: DateTime<Utc>,
+    color: Option<HexColor>,
+}
+
+#[derive(Clone)]
 pub(crate) struct Client {
     url: Url,
     headers: HeaderMap,
-    bucket: String,
+    bucket: ArcStr,
+    measurement: ArcStr,
     http_client: HttpClient,
 }
 
@@ -57,13 +82,15 @@ impl Client {
             header::CONTENT_TYPE,
             "application/vnd.flux".parse().unwrap(),
         );
-        let bucket = config.influxdb_bucket.clone();
+        let bucket = ArcStr::from(&config.influxdb_bucket);
+        let measurement = ArcStr::from(&config.influxdb_measurement);
         let http_client = HttpClient::new();
 
         Self {
             url,
             headers,
             bucket,
+            measurement,
             http_client,
         }
     }
@@ -71,12 +98,14 @@ impl Client {
     #[instrument(skip_all, name = "influxdb_query")]
     async fn query<T>(
         &self,
-        flux_query: &'static str,
+        flux_query: &str,
     ) -> Result<impl Stream<Item = Result<T, csv_async::Error>>, ()>
     where
         T: DeserializeOwned + 'static,
     {
-        let body = flux_query.replacen("__bucketplaceholder__", &self.bucket, 1);
+        let body = flux_query
+            .replace("__bucketplaceholder__", &self.bucket)
+            .replace("__measurementplaceholder__", &self.measurement);
 
         let response = self
             .http_client
@@ -112,6 +141,52 @@ impl Client {
 
         Ok(row_stream)
     }
+
+    pub(crate) fn handle_timeline(&self) -> (mpsc::Sender<TimelineRequest>, JoinHandle<()>) {
+        const FLUX_QUERY: &str = include_str!("timeline.flux");
+        let (tx, mut rx) = mpsc::channel::<TimelineRequest>(1);
+        let cloned_self = self.clone();
+
+        let task = tokio::spawn(
+            async move {
+                info!(status = "started");
+
+                while let Some(request) = rx.recv().await {
+                    let flux_query = FLUX_QUERY.replace("__idplaceholder__", &request.id);
+                    let Ok(rows_stream) = cloned_self.query::<TimelineRow>(&flux_query).await else {
+                        continue;
+                    };
+                    let mut rows: Vec<_> = match rows_stream.try_collect().await {
+                        Ok(rows) => rows,
+                        Err(err) => {
+                            error!(kind = "CSV data processing",%err);
+                            continue;
+                        }
+                    };
+                    let slots: Vec<TimelineSlot> = spawn_blocking(|| {
+                        let Some(last_row) = rows.pop() else {
+                            return Vec::new();
+                        };
+                        rows.dedup_by_key(|row| row.color);
+                        rows.push(last_row);
+                        rows.into_iter()
+                            .map(|TimelineRow { time: start, color }| TimelineSlot { start, color })
+                            .collect()
+                    })
+                    .await
+                    .unwrap();
+                    if request.response.send(slots).is_err() {
+                        error!(kind = "response channel sending");
+                    }
+                }
+
+                info!(status = "terminating");
+            }
+            .instrument(info_span!("influxdb_timeline_handler")),
+        );
+
+        (tx, task)
+    }
 }
 
 #[cfg(test)]
@@ -119,14 +194,15 @@ mod tests {
     use super::*;
 
     mod client {
+        use mockito::{Matcher, Mock, Server};
+
         use super::*;
 
         mod query {
-            use mockito::{Matcher, Mock, Server};
-
             use super::*;
 
-            const FLUX_QUERY: &str = "some Flux query with __bucketplaceholder__";
+            const FLUX_QUERY: &str =
+                "some Flux query with __bucketplaceholder__ and __measurementplaceholder__";
 
             fn server_mock(server: &mut Server) -> Mock {
                 server
@@ -136,7 +212,7 @@ mod tests {
                     .match_header("Accept-Encoding", "gzip")
                     .match_header("Authorization", "Token sometoken")
                     .match_header("Content-Type", "application/vnd.flux")
-                    .match_body("some Flux query with somebucket")
+                    .match_body("some Flux query with somebucket and somemeasurement")
             }
 
             #[tokio::test]
@@ -146,6 +222,7 @@ mod tests {
                     influxdb_api_token: "sometoken".to_string(),
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
+                    influxdb_measurement: "somemeasurement".to_string(),
                 };
                 let client = Client::new(&config);
                 let result = client.query::<()>(FLUX_QUERY).await;
@@ -164,6 +241,7 @@ mod tests {
                     influxdb_api_token: "sometoken".to_string(),
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
+                    influxdb_measurement: "somemeasurement".to_string(),
                 };
                 let client = Client::new(&config);
                 let result = client.query::<()>(FLUX_QUERY).await;
@@ -184,6 +262,7 @@ mod tests {
                     influxdb_api_token: "sometoken".to_string(),
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
+                    influxdb_measurement: "somemeasurement".to_string(),
                 };
                 let client = Client::new(&config);
                 let rows = client
@@ -195,6 +274,164 @@ mod tests {
                     .unwrap();
                 mock.assert_async().await;
                 assert_eq!(rows, [("one".to_string(), 1), ("two".to_string(), 2)]);
+            }
+        }
+
+        mod handle_timeline {
+            use indoc::indoc;
+
+            use super::*;
+
+            fn server_mock(server: &mut Server) -> Mock {
+                server
+                    .mock("POST", "/api/v2/query")
+                    .match_query(Matcher::UrlEncoded("org".into(), "".into()))
+                    .match_body(Matcher::Regex("r\\.id == \"someid\"".to_string()))
+            }
+
+            #[tokio::test]
+            async fn query_error() {
+                let mut server = Server::new_async().await;
+                let mock = server_mock(&mut server)
+                    .with_status(500)
+                    .create_async()
+                    .await;
+                let config = Config {
+                    influxdb_url: server.url().parse().unwrap(),
+                    influxdb_api_token: Default::default(),
+                    influxdb_org: Default::default(),
+                    influxdb_bucket: Default::default(),
+                    influxdb_measurement: Default::default(),
+                };
+                let client = Client::new(&config);
+                let (tx, rx) = oneshot::channel();
+                let request = TimelineRequest {
+                    id: "someid".to_string(),
+                    response: tx,
+                };
+                let (timeline_channel, task) = client.handle_timeline();
+                timeline_channel.send(request).await.unwrap();
+                assert!(rx.await.is_err());
+                mock.assert_async().await;
+                assert!(!task.is_finished());
+            }
+
+            #[tokio::test]
+            async fn csv_error() {
+                let mut server = Server::new_async().await;
+                let mock = server_mock(&mut server)
+                    .with_status(200)
+                    .with_body("something,otherthing\n1,2")
+                    .create_async()
+                    .await;
+                let config = Config {
+                    influxdb_url: server.url().parse().unwrap(),
+                    influxdb_api_token: Default::default(),
+                    influxdb_org: Default::default(),
+                    influxdb_bucket: Default::default(),
+                    influxdb_measurement: Default::default(),
+                };
+                let client = Client::new(&config);
+                let (tx, rx) = oneshot::channel();
+                let request = TimelineRequest {
+                    id: "someid".to_string(),
+                    response: tx,
+                };
+                let (timeline_channel, task) = client.handle_timeline();
+                timeline_channel.send(request).await.unwrap();
+                assert!(rx.await.is_err());
+                mock.assert_async().await;
+                assert!(!task.is_finished());
+            }
+
+            #[tokio::test]
+            async fn success_empty() {
+                let mut server = Server::new_async().await;
+                let mock = server_mock(&mut server)
+                    .with_status(200)
+                    .with_body("")
+                    .create_async()
+                    .await;
+                let config = Config {
+                    influxdb_url: server.url().parse().unwrap(),
+                    influxdb_api_token: Default::default(),
+                    influxdb_org: Default::default(),
+                    influxdb_bucket: Default::default(),
+                    influxdb_measurement: Default::default(),
+                };
+                let client = Client::new(&config);
+                let (tx, rx) = oneshot::channel();
+                let request = TimelineRequest {
+                    id: "someid".to_string(),
+                    response: tx,
+                };
+                let (timeline_channel, task) = client.handle_timeline();
+                timeline_channel.send(request).await.unwrap();
+                let slots = rx.await.unwrap();
+                assert_eq!(slots, vec![]);
+                mock.assert_async().await;
+                assert!(!task.is_finished());
+            }
+
+            #[tokio::test]
+            async fn success() {
+                let mut server = Server::new_async().await;
+                let body = indoc! {"
+                    _time,color
+                    1984-12-09T04:30:00Z,#123456
+                    1984-12-09T04:35:00Z,#123456
+                    1984-12-09T04:40:00Z,#123456
+                    1984-12-09T05:00:00Z,
+                    1984-12-09T05:15:00Z,
+                    1984-12-09T05:30:00Z,#beefad
+                    1984-12-09T05:35:00Z,#beefad
+                    1984-12-09T05:40:00Z,#beefad
+                    1984-12-09T05:45:00Z,#beefad
+                "};
+                let mock = server_mock(&mut server)
+                    .with_status(200)
+                    .with_body(body)
+                    .create_async()
+                    .await;
+                let config = Config {
+                    influxdb_url: server.url().parse().unwrap(),
+                    influxdb_api_token: Default::default(),
+                    influxdb_org: Default::default(),
+                    influxdb_bucket: Default::default(),
+                    influxdb_measurement: Default::default(),
+                };
+                let client = Client::new(&config);
+                let (tx, rx) = oneshot::channel();
+                let request = TimelineRequest {
+                    id: "someid".to_string(),
+                    response: tx,
+                };
+                let (timeline_channel, task) = client.handle_timeline();
+                timeline_channel.send(request).await.unwrap();
+                let slots = rx.await.unwrap();
+                assert_eq!(
+                    slots,
+                    [
+                        TimelineSlot {
+                            start: "1984-12-09T04:30:00Z".parse().unwrap(),
+                            color: Some("#123456".parse().unwrap())
+                        },
+                        TimelineSlot {
+                            start: "1984-12-09T05:00:00Z".parse().unwrap(),
+                            color: None
+                        },
+                        TimelineSlot {
+                            start: "1984-12-09T05:30:00Z".parse().unwrap(),
+                            color: Some("#beefad".parse().unwrap())
+                        },
+                        TimelineSlot {
+                            start: "1984-12-09T05:45:00Z".parse().unwrap(),
+                            color: Some("#beefad".parse().unwrap())
+                        },
+                    ]
+                );
+                mock.assert_async().await;
+                assert!(!task.is_finished());
             }
         }
     }
