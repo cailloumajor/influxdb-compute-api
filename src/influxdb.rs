@@ -6,8 +6,7 @@ use clap::Args;
 use csv_async::AsyncReaderBuilder;
 use futures_util::{Stream, TryStreamExt};
 use hex_color::HexColor;
-use reqwest::header::{self, HeaderMap};
-use reqwest::Client as HttpClient;
+use reqwest::{header, Client as HttpClient, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use tokio::sync::{mpsc, oneshot};
@@ -15,7 +14,7 @@ use tokio::task::{spawn_blocking, JoinHandle};
 use tracing::{error, info, info_span, instrument, Instrument};
 use url::Url;
 
-use crate::model::TimelineSlot;
+use crate::model::{TimelineResponse, TimelineSlot};
 
 #[derive(Args)]
 #[group(skip)]
@@ -41,10 +40,18 @@ pub(crate) struct Config {
     influxdb_measurement: String,
 }
 
-pub(crate) struct TimelineRequest {
-    id: String,
-    response: oneshot::Sender<Vec<TimelineSlot>>,
+pub(crate) struct HealthRequest {
+    pub(crate) response_channel: oneshot::Sender<StatusCode>,
 }
+
+pub(crate) type HealthChannel = mpsc::Sender<HealthRequest>;
+
+pub(crate) struct TimelineRequest {
+    pub(crate) id: String,
+    pub(crate) response_channel: oneshot::Sender<TimelineResponse>,
+}
+
+pub(crate) type TimelineChannel = mpsc::Sender<TimelineRequest>;
 
 #[derive(Deserialize)]
 struct QueryResponse {
@@ -60,8 +67,9 @@ struct TimelineRow {
 
 #[derive(Clone)]
 pub(crate) struct Client {
-    url: Url,
-    headers: HeaderMap,
+    base_url: Url,
+    auth_header: ArcStr,
+    org: ArcStr,
     bucket: ArcStr,
     measurement: ArcStr,
     http_client: HttpClient,
@@ -69,26 +77,17 @@ pub(crate) struct Client {
 
 impl Client {
     pub(crate) fn new(config: &Config) -> Self {
-        let mut url = config.influxdb_url.join("/api/v2/query").unwrap();
-        url.query_pairs_mut()
-            .append_pair("org", &config.influxdb_org);
-        let mut headers = HeaderMap::new();
-        let auth_header = format!("Token {}", config.influxdb_api_token)
-            .parse()
-            .unwrap();
-        headers.insert(header::ACCEPT, "application/csv".parse().unwrap());
-        headers.insert(header::AUTHORIZATION, auth_header);
-        headers.insert(
-            header::CONTENT_TYPE,
-            "application/vnd.flux".parse().unwrap(),
-        );
+        let base_url = config.influxdb_url.clone();
+        let auth_header = ArcStr::from(format!("Token {}", config.influxdb_api_token));
+        let org = ArcStr::from(&config.influxdb_org);
         let bucket = ArcStr::from(&config.influxdb_bucket);
         let measurement = ArcStr::from(&config.influxdb_measurement);
         let http_client = HttpClient::new();
 
         Self {
-            url,
-            headers,
+            base_url,
+            auth_header,
+            org,
             bucket,
             measurement,
             http_client,
@@ -103,14 +102,18 @@ impl Client {
     where
         T: DeserializeOwned + 'static,
     {
+        let mut url = self.base_url.join("/api/v2/query").unwrap();
+        url.query_pairs_mut().append_pair("org", self.org.as_str());
         let body = flux_query
             .replace("__bucketplaceholder__", &self.bucket)
             .replace("__measurementplaceholder__", &self.measurement);
 
         let response = self
             .http_client
-            .post(self.url.clone())
-            .headers(self.headers.clone())
+            .post(url)
+            .header(header::ACCEPT, "application/csv")
+            .header(header::AUTHORIZATION, self.auth_header.as_str())
+            .header(header::CONTENT_TYPE, "application/vnd.flux")
             .body(body)
             .send()
             .await
@@ -142,7 +145,37 @@ impl Client {
         Ok(row_stream)
     }
 
-    pub(crate) fn handle_timeline(&self) -> (mpsc::Sender<TimelineRequest>, JoinHandle<()>) {
+    pub(crate) fn handle_health(&self) -> (HealthChannel, JoinHandle<()>) {
+        let (tx, mut rx) = mpsc::channel::<HealthRequest>(1);
+        let cloned_self = self.clone();
+        let url = self.base_url.join("/health").unwrap();
+
+        let task = tokio::spawn(
+            async move {
+                info!(status = "started");
+
+                while let Some(request) = rx.recv().await {
+                    let response = match cloned_self.http_client.get(url.clone()).send().await {
+                        Ok(resp) => resp,
+                        Err(err) => {
+                            error!(kind = "request sending", %err);
+                            continue;
+                        }
+                    };
+                    if request.response_channel.send(response.status()).is_err() {
+                        error!(kind = "response channel sending");
+                    }
+                }
+
+                info!(status = "terminating");
+            }
+            .instrument(info_span!("influxdb_health_handler")),
+        );
+
+        (tx, task)
+    }
+
+    pub(crate) fn handle_timeline(&self) -> (TimelineChannel, JoinHandle<()>) {
         const FLUX_QUERY: &str = include_str!("timeline.flux");
         let (tx, mut rx) = mpsc::channel::<TimelineRequest>(1);
         let cloned_self = self.clone();
@@ -175,7 +208,7 @@ impl Client {
                     })
                     .await
                     .unwrap();
-                    if request.response.send(slots).is_err() {
+                    if request.response_channel.send(slots.into()).is_err() {
                         error!(kind = "response channel sending");
                     }
                 }
@@ -277,6 +310,86 @@ mod tests {
             }
         }
 
+        mod handle_health {
+            use super::*;
+
+            #[tokio::test]
+            async fn request_send_failure() {
+                let config = Config {
+                    influxdb_url: "ftp://example.com".parse().unwrap(),
+                    influxdb_api_token: "sometoken".to_string(),
+                    influxdb_org: "someorg".to_string(),
+                    influxdb_bucket: "somebucket".to_string(),
+                    influxdb_measurement: "somemeasurement".to_string(),
+                };
+                let client = Client::new(&config);
+                let (tx, rx) = oneshot::channel();
+                let request = HealthRequest {
+                    response_channel: tx,
+                };
+                let (health_channel, task) = client.handle_health();
+                health_channel.send(request).await.unwrap();
+                assert!(rx.await.is_err());
+                assert!(!task.is_finished());
+            }
+
+            #[tokio::test]
+            async fn unhealthy() {
+                let mut server = Server::new_async().await;
+                let mock = server
+                    .mock("GET", "/health")
+                    .with_status(503)
+                    .create_async()
+                    .await;
+                let config = Config {
+                    influxdb_url: server.url().parse().unwrap(),
+                    influxdb_api_token: Default::default(),
+                    influxdb_org: Default::default(),
+                    influxdb_bucket: Default::default(),
+                    influxdb_measurement: Default::default(),
+                };
+                let client = Client::new(&config);
+                let (tx, rx) = oneshot::channel();
+                let request = HealthRequest {
+                    response_channel: tx,
+                };
+                let (health_channel, task) = client.handle_health();
+                health_channel.send(request).await.unwrap();
+                let status_code = rx.await.unwrap();
+                assert_eq!(status_code, 503);
+                mock.assert_async().await;
+                assert!(!task.is_finished());
+            }
+
+            #[tokio::test]
+            async fn healthy() {
+                let mut server = Server::new_async().await;
+                let mock = server
+                    .mock("GET", "/health")
+                    .with_status(200)
+                    .create_async()
+                    .await;
+                let config = Config {
+                    influxdb_url: server.url().parse().unwrap(),
+                    influxdb_api_token: Default::default(),
+                    influxdb_org: Default::default(),
+                    influxdb_bucket: Default::default(),
+                    influxdb_measurement: Default::default(),
+                };
+                let client = Client::new(&config);
+                let (tx, rx) = oneshot::channel();
+                let request = HealthRequest {
+                    response_channel: tx,
+                };
+                let (health_channel, task) = client.handle_health();
+                health_channel.send(request).await.unwrap();
+                let status_code = rx.await.unwrap();
+                assert_eq!(status_code, 200);
+                mock.assert_async().await;
+                assert!(!task.is_finished());
+            }
+        }
+
         mod handle_timeline {
             use indoc::indoc;
 
@@ -307,7 +420,7 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
-                    response: tx,
+                    response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
                 timeline_channel.send(request).await.unwrap();
@@ -335,7 +448,7 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
-                    response: tx,
+                    response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
                 timeline_channel.send(request).await.unwrap();
@@ -363,12 +476,12 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
-                    response: tx,
+                    response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
                 timeline_channel.send(request).await.unwrap();
                 let slots = rx.await.unwrap();
-                assert_eq!(slots, vec![]);
+                assert_eq!(slots.into_inner(), vec![]);
                 mock.assert_async().await;
                 assert!(!task.is_finished());
             }
@@ -404,13 +517,13 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
-                    response: tx,
+                    response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
                 timeline_channel.send(request).await.unwrap();
                 let slots = rx.await.unwrap();
                 assert_eq!(
-                    slots,
+                    slots.into_inner(),
                     [
                         TimelineSlot {
                             start: "1984-12-09T04:30:00Z".parse().unwrap(),

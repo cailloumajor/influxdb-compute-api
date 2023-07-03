@@ -54,9 +54,8 @@ Returns the timeline data.
 
 Timeline data consists of an array of arrays. Inner arrays contain following components:
 
-1. Slot start date and time in seconds since epoch (32-bit unsigned integer);
-2. Slot end date and time in seconds since epoch (32-bit unsigned integer);
-3. Slot color as a 3-tuple of 8-bit values, representing red, green and blue components.
+1. Slot start date and time in seconds since epoch (integer);
+2. Slot color as a 3-tuple of integers, representing red, green and blue components.
 
 [msgpack]: https://msgpack.org/
 

@@ -8,13 +8,23 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.71"
 arcstr = { version = "1.1.5", default-features = false }
+bytes = "1.4.0"
 clap-verbosity-flag = "2.0.1"
 csv-async = "1.2.6"
 futures-util = { version = "0.3.28", features = [ "io" ] }
 hex_color = { version = "2.0.0", features = [ "serde" ] }
+mime = "0.3.17"
+rmp-serde = "1.1.1"
 serde = { version = "1.0.164", features = [ "derive" ] }
+signal-hook = "0.3.15"
+signal-hook-tokio = { version = "0.3.1", features = [ "futures-v0_3" ] }
 tracing = "0.1.37"
 url = "2.4.0"
+
+[dependencies.axum]
+version = "0.6.18"
+default-features = false
+features = [ "http1", "tokio" ]
 
 [dependencies.chrono]
 version = "0.4.26"
@@ -46,5 +56,7 @@ default-features = false
 features = [ "ansi", "fmt", "parking_lot", "smallvec", "std" ]
 
 [dev-dependencies]
+hyper = { version = "0.14.26", default-features = false }
 indoc = "2.0.1"
 mockito = "1.1.0"
+tower = { version = "0.4.13", default-features = false }
