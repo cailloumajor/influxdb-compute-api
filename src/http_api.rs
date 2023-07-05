@@ -183,8 +183,6 @@ mod tests {
     mod timeline_handler {
         use std::vec;
 
-        use hex_color::HexColor;
-
         use crate::model::TimelineSlot;
 
         use super::*;
@@ -249,7 +247,7 @@ mod tests {
                     },
                     TimelineSlot {
                         start: "1984-12-09T04:30:00Z".parse().unwrap(),
-                        color: Some(HexColor::MAGENTA),
+                        color: Some(5),
                     },
                 ];
                 request_tx
@@ -262,11 +260,10 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK);
             assert_eq!(res.headers()["Content-Type"], "application/msgpack");
             let body = hyper::body::to_bytes(res).await.unwrap();
-            let expected: &[u8] = &[
-                0x92, 0x92, 0x00, 0xc0, 0x92, 0xce, 0x1c, 0x19, 0x37, 0x48, 0x93, 0xcc, 0xff, 0x00,
-                0xcc, 0xff,
+            let expected = [
+                0x92, 0x92, 0x00, 0xc0, 0x92, 0xce, 0x1c, 0x19, 0x37, 0x48, 0x05,
             ];
-            assert_eq!(body, expected);
+            assert_eq!(body.to_vec(), expected);
         }
     }
 }

@@ -55,7 +55,7 @@ Returns the timeline data.
 Timeline data consists of an array of arrays. Inner arrays contain following components:
 
 1. Slot start date and time in seconds since epoch (integer);
-2. Slot color as a 3-tuple of integers, representing red, green and blue components.
+2. Index of the color in an abstract palette (integer).
 
 [msgpack]: https://msgpack.org/
 

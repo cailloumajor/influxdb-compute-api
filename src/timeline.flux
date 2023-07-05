@@ -10,15 +10,15 @@ colorFromStatuses = (r) =>
     ({r with color:
             if r.cycle then
                 if r.cycleTimeOver then
-                    "red"
+                    0
                 else if float(v: r.averageCycleTime) / 10.0 < 22.3 then
-                    "green"
+                    1
                 else
-                    "orange"
+                    2
             else if r.campChange then
-                "blue"
+                3
             else
-                "red",
+                0,
     })
 
 from(bucket: "__bucketplaceholder__")

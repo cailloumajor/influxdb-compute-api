@@ -5,7 +5,6 @@ use chrono::{DateTime, Utc};
 use clap::Args;
 use csv_async::AsyncReaderBuilder;
 use futures_util::{Stream, TryStreamExt};
-use hex_color::HexColor;
 use reqwest::{header, Client as HttpClient, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -62,7 +61,7 @@ struct QueryResponse {
 struct TimelineRow {
     #[serde(rename = "_time")]
     time: DateTime<Utc>,
-    color: Option<HexColor>,
+    color: Option<u8>,
 }
 
 #[derive(Clone)]
@@ -491,15 +490,15 @@ mod tests {
                 let mut server = Server::new_async().await;
                 let body = indoc! {"
                     _time,color
-                    1984-12-09T04:30:00Z,#123456
-                    1984-12-09T04:35:00Z,#123456
-                    1984-12-09T04:40:00Z,#123456
+                    1984-12-09T04:30:00Z,1
+                    1984-12-09T04:35:00Z,1
+                    1984-12-09T04:40:00Z,1
                     1984-12-09T05:00:00Z,
                     1984-12-09T05:15:00Z,
-                    1984-12-09T05:30:00Z,#beefad
-                    1984-12-09T05:35:00Z,#beefad
-                    1984-12-09T05:40:00Z,#beefad
-                    1984-12-09T05:45:00Z,#beefad
+                    1984-12-09T05:30:00Z,0
+                    1984-12-09T05:35:00Z,0
+                    1984-12-09T05:40:00Z,0
+                    1984-12-09T05:45:00Z,0
                 "};
                 let mock = server_mock(&mut server)
                     .with_status(200)
@@ -527,7 +526,7 @@ mod tests {
                     [
                         TimelineSlot {
                             start: "1984-12-09T04:30:00Z".parse().unwrap(),
-                            color: Some("#123456".parse().unwrap())
+                            color: Some(1)
                         },
                         TimelineSlot {
                             start: "1984-12-09T05:00:00Z".parse().unwrap(),
@@ -535,11 +534,11 @@ mod tests {
                         },
                         TimelineSlot {
                             start: "1984-12-09T05:30:00Z".parse().unwrap(),
-                            color: Some("#beefad".parse().unwrap())
+                            color: Some(0)
                         },
                         TimelineSlot {
                             start: "1984-12-09T05:45:00Z".parse().unwrap(),
-                            color: Some("#beefad".parse().unwrap())
+                            color: Some(0)
                         },
                     ]
                 );
