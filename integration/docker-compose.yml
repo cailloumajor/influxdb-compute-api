@@ -1,0 +1,32 @@
+version: "3"
+
+services:
+
+  influxdb:
+    image: influxdb:2.7
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=user
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password
+      - DOCKER_INFLUXDB_INIT_ORG=integration_tests_org
+      - DOCKER_INFLUXDB_INIT_BUCKET=integration_tests_bucket
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=integration_tests_token
+
+  influxdb-compute-api:
+    build: ..
+    command:
+      - /usr/local/bin/influxdb-compute-api
+      - --verbose
+    environment:
+      - INFLUXDB_API_TOKEN=integration_tests_token
+      - INFLUXDB_ORG=integration_tests_org
+      - INFLUXDB_BUCKET=integration_tests_bucket
+      - INFLUXDB_MEASUREMENT=integration_tests
+
+  api-test:
+    image: ghcr.io/orange-opensource/hurl:3.0.1
+    command:
+      - --test
+      - /usr/src/test.hurl
+    volumes:
+      - ./test.hurl:/usr/src/test.hurl:ro

@@ -63,5 +63,25 @@ Timeline data consists of an array of arrays. Inner arrays contain following com
 
 ```ShellSession
 $ influxdb-compute-api --help
-Usage: 🚧 WIP 🚧
+Usage: influxdb-compute-api [OPTIONS] --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT>
+
+Options:
+      --listen-address <LISTEN_ADDRESS>
+          Address to listen on [env: LISTEN_ADDRESS=] [default: 0.0.0.0:8080]
+      --influxdb-url <INFLUXDB_URL>
+          InfluxDB base URL [env: INFLUXDB_URL=] [default: http://influxdb:8086]
+      --influxdb-api-token <INFLUXDB_API_TOKEN>
+          InfluxDB API token with read permission on configured bucket [env: INFLUXDB_API_TOKEN=]
+      --influxdb-org <INFLUXDB_ORG>
+          InfluxDB organization name or ID [env: INFLUXDB_ORG=]
+      --influxdb-bucket <INFLUXDB_BUCKET>
+          InfluxDB bucket [env: INFLUXDB_BUCKET=]
+      --influxdb-measurement <INFLUXDB_MEASUREMENT>
+          InfluxDB measurement [env: INFLUXDB_MEASUREMENT=]
+  -v, --verbose...
+          More output per occurrence
+  -q, --quiet...
+          Less output per occurrence
+  -h, --help
+          Print help
 ```
