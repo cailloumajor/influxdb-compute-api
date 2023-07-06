@@ -56,6 +56,6 @@ features = [ "ansi", "fmt", "parking_lot", "smallvec", "std" ]
 
 [dev-dependencies]
 hyper = { version = "0.14.27", default-features = false }
-indoc = "2.0.1"
+indoc = "2.0.2"
 mockito = "1.1.0"
 tower = { version = "0.4.13", default-features = false }
