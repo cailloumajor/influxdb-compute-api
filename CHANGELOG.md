@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.0...v0.1.1) (2023-07-06)
+
+
+### Bug Fixes
+
+* **ci:** add missing actions permissions ([b94a304](https://github.com/cailloumajor/influxdb-compute-api/commit/b94a304f0876538e5f32a416ada348f3d105dad9))
+
 ## 0.1.0 (2023-07-06)
 
 
