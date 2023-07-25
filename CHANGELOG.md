@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.3](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.2...v0.1.3) (2023-07-25)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate clap to 4.3.15 ([0f93b61](https://github.com/cailloumajor/influxdb-compute-api/commit/0f93b614345fd09795dc5b9a0e00fcc058f2cd1c))
+* **deps:** update rust crate clap to 4.3.17 ([1113173](https://github.com/cailloumajor/influxdb-compute-api/commit/1113173386502709c8f3aa16a8ddd2927187d707))
+* **deps:** update rust crate clap to 4.3.19 ([f9f9e33](https://github.com/cailloumajor/influxdb-compute-api/commit/f9f9e33bf7959c2db7cdc39705c653661e67c430))
+* **deps:** update rust crate rmp-serde to 1.1.2 ([eb22a42](https://github.com/cailloumajor/influxdb-compute-api/commit/eb22a42dbd328ee091e7671d0cc56cbb3a229172))
+* **deps:** update rust crate serde to 1.0.173 ([6db5f1f](https://github.com/cailloumajor/influxdb-compute-api/commit/6db5f1f57fbd2d06794e858eb58a7f57588ed393))
+* **deps:** update rust crate serde to 1.0.174 ([df23328](https://github.com/cailloumajor/influxdb-compute-api/commit/df23328e27b34925cdd227e1cad624ece52361c2))
+* **deps:** update rust crate serde to 1.0.175 ([c8d5314](https://github.com/cailloumajor/influxdb-compute-api/commit/c8d5314f2b70097b264abae61ef7b5f2fef0f7ff))
+* **deps:** update rust crate signal-hook to 0.3.17 ([1a8359c](https://github.com/cailloumajor/influxdb-compute-api/commit/1a8359c7231c29750288c3fb16eccf98ba602936))
+
 ## [0.1.2](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.1...v0.1.2) (2023-07-17)
 
 
