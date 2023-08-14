@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.4](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.3...v0.1.4) (2023-08-14)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate axum to 0.6.20 ([c76a38f](https://github.com/cailloumajor/influxdb-compute-api/commit/c76a38f5320609cca910f5808be3356101d642b9))
+* **deps:** update rust crate clap to 4.3.21 ([6107756](https://github.com/cailloumajor/influxdb-compute-api/commit/6107756a924872dc05f76f21c529e381c9098979))
+* **deps:** update rust crate serde to 1.0.183 ([eae7b8e](https://github.com/cailloumajor/influxdb-compute-api/commit/eae7b8eb7ce95f85b6fd0b940c256f79fc2ace02))
+* **deps:** update rust crate tokio to 1.31.0 ([f4d70da](https://github.com/cailloumajor/influxdb-compute-api/commit/f4d70da418e2b3466a3d6f8f65c7a729996adfa7))
+* **deps:** update rust docker tag to v1.71.1 ([eec2fbb](https://github.com/cailloumajor/influxdb-compute-api/commit/eec2fbbda4e57fec394a8c3ac53dcedb1dc67083))
+
 ## [0.1.3](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.2...v0.1.3) (2023-07-25)
 
 
