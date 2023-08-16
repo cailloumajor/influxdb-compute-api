@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.4...v0.1.5) (2023-08-15)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate anyhow to 1.0.74 ([91d0433](https://github.com/cailloumajor/influxdb-compute-api/commit/91d04332bccd268016abe4ed36056e246d874603))
+
 ## [0.1.4](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.3...v0.1.4) (2023-08-14)
 
 
