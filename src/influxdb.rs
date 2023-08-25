@@ -185,7 +185,8 @@ impl Client {
 
                 while let Some(request) = rx.recv().await {
                     let flux_query = FLUX_QUERY.replace("__idplaceholder__", &request.id);
-                    let Ok(rows_stream) = cloned_self.query::<TimelineRow>(&flux_query).await else {
+                    let Ok(rows_stream) = cloned_self.query::<TimelineRow>(&flux_query).await
+                    else {
                         continue;
                     };
                     let mut rows: Vec<_> = match rows_stream.try_collect().await {
