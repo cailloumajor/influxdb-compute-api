@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.7](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.6...v0.1.7) (2023-08-25)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate clap to 4.4.0 ([994fed5](https://github.com/cailloumajor/influxdb-compute-api/commit/994fed50f3ebae54d551873f162c9a1eb6d896df))
+* **deps:** update rust crate reqwest to 0.11.19 ([b15e71e](https://github.com/cailloumajor/influxdb-compute-api/commit/b15e71e596dae58f819ed7a23838e1d8f614f6fb))
+* **deps:** update rust crate reqwest to 0.11.20 ([3e755fb](https://github.com/cailloumajor/influxdb-compute-api/commit/3e755fb43c36977fd8a0d41e011606e87216d9ff))
+* **deps:** update rust crate serde to 1.0.186 ([c796424](https://github.com/cailloumajor/influxdb-compute-api/commit/c796424f03f8b0c76bd009ec6a261c4a0f9a726c))
+* **deps:** update rust docker tag to v1.72.0 ([24d1bd4](https://github.com/cailloumajor/influxdb-compute-api/commit/24d1bd4dfc27a636f77e7865c48c8a664cd1673f))
+
 ## [0.1.6](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.5...v0.1.6) (2023-08-21)
 
 
