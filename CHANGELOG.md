@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.7...v1.0.0) (2023-08-27)
+
+
+### Features
+
+* implement performance ratio ([8ff3ca3](https://github.com/cailloumajor/influxdb-compute-api/commit/8ff3ca37931fb5ef0df54e812a8d79391ee98950))
+
+
+### Bug Fixes
+
+* **deps:** update rust crate serde to 1.0.188 ([6bddb8d](https://github.com/cailloumajor/influxdb-compute-api/commit/6bddb8d820703274087a2be3cb85d69559c0ec42))
+
 ## [0.1.7](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.6...v0.1.7) (2023-08-25)
 
 
