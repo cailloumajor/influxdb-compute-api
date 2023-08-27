@@ -15,6 +15,7 @@ mod http_api;
 mod influxdb;
 mod level_filter;
 mod model;
+mod time;
 
 #[derive(Parser)]
 struct Args {
@@ -50,11 +51,12 @@ async fn main() -> anyhow::Result<()> {
     let influxdb_client = influxdb::Client::new(&args.influxdb);
     let (health_channel, health_task) = influxdb_client.handle_health();
     let (timeline_channel, timeline_task) = influxdb_client.handle_timeline();
+    let (performance_channel, performance_task) = influxdb_client.handle_performance();
 
     let signals = Signals::new(TERM_SIGNALS).context("error registering termination signals")?;
     let signals_handle = signals.handle();
 
-    let app = http_api::app(health_channel, timeline_channel);
+    let app = http_api::app(health_channel, timeline_channel, performance_channel);
     async move {
         info!(addr = %args.common.listen_address, msg = "start listening");
         if let Err(err) = Server::bind(&args.common.listen_address)
@@ -71,7 +73,8 @@ async fn main() -> anyhow::Result<()> {
 
     signals_handle.close();
 
-    tokio::try_join!(health_task, timeline_task).context("error joining tasks")?;
+    tokio::try_join!(health_task, timeline_task, performance_task)
+        .context("error joining tasks")?;
 
     Ok(())
 }
