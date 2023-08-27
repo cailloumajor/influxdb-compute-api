@@ -73,9 +73,16 @@ docker compose exec influxdb \
     --precision s \
     --file /usr/src/timeline_data.txt
 
+# Feed InfluxDB with performance data
+docker compose exec influxdb \
+    influx write \
+    --bucket integration_tests_bucket \
+    --precision s \
+    --file /usr/src/performance_data.txt
+
 if ! docker compose up api-test --exit-code-from api-test --no-log-prefix --quiet-pull; then
     die "tests failure"
 fi
 
-echo "$me: success"
+echo "$me: success 🎉"
 teardown

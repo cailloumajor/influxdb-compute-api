@@ -33,6 +33,29 @@ None
 | 204  | Service is healthy   |
 | 500  | Service is unhealthy |
 
+### Performance ratio
+
+#### `GET` `/performance/{id}`
+
+Returns the performance ratio.
+
+#### Parameters
+
+| Name                     | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `id` _(path)_            | Partner ID                                  |
+| `Client-Time` _(header)_ | Client request timestamp ([RFC3339] format) |
+
+[RFC3339]: https://datatracker.ietf.org/doc/html/rfc3339
+
+#### Response
+
+| Code | Description                        |
+| ---- | ---------------------------------- |
+| 200  | Performance ratio as a JSON number |
+| 400  | Bad request                        |
+| 500  | Internal error                     |
+
 ### Timeline
 
 #### `POST` `/timeline/{id}`
@@ -63,7 +86,7 @@ Timeline data consists of an array of arrays. Inner arrays contain following com
 
 ```ShellSession
 $ influxdb-compute-api --help
-Usage: influxdb-compute-api [OPTIONS] --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT>
+Usage: influxdb-compute-api [OPTIONS] --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT> --shift-start-times <SHIFT_START_TIMES>
 
 Options:
       --listen-address <LISTEN_ADDRESS>
@@ -78,6 +101,10 @@ Options:
           InfluxDB bucket [env: INFLUXDB_BUCKET=]
       --influxdb-measurement <INFLUXDB_MEASUREMENT>
           InfluxDB measurement [env: INFLUXDB_MEASUREMENT=]
+      --shift-start-times <SHIFT_START_TIMES>
+          Comma-separated shift start times in `%H:%M:%S` format [env: SHIFT_START_TIMES=]
+      --pauses <PAUSES>
+          Comma-separated pause time definitions (`%H:%M:%S/{minutes}`) [env: PAUSES=]
   -v, --verbose...
           More output per occurrence
   -q, --quiet...
