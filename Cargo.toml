@@ -23,7 +23,7 @@ url = "2.4.1"
 [dependencies.axum]
 version = "0.6.20"
 default-features = false
-features = [ "headers", "json", "http1", "tokio" ]
+features = [ "headers", "json", "http1", "query", "tokio" ]
 
 [dependencies.chrono]
 version = "0.4.28"

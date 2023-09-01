@@ -1,4 +1,6 @@
 GET {{host}}/timeline/id1
+[QueryStringParams]
+targetCycleTime: 21.2
 
 HTTP 200
 Content-Type: application/msgpack

@@ -57,6 +57,7 @@ pub(crate) type HealthChannel = mpsc::Sender<HealthRequest>;
 
 pub(crate) struct TimelineRequest {
     pub(crate) id: String,
+    pub(crate) target_cycle_time: f32,
     pub(crate) response_channel: oneshot::Sender<TimelineResponse>,
 }
 
@@ -221,7 +222,12 @@ impl Client {
                 info!(status = "started");
 
                 while let Some(request) = rx.recv().await {
-                    let flux_query = FLUX_QUERY.replace("__idplaceholder__", &request.id);
+                    let flux_query = FLUX_QUERY
+                        .replace("__idplaceholder__", &request.id)
+                        .replace(
+                            "__targetcycletimeplaceholder__",
+                            &request.target_cycle_time.to_string(),
+                        );
                     let Ok(mut rows) = cloned_self.query::<TimelineRow>(&flux_query).await else {
                         continue;
                     };
@@ -510,7 +516,10 @@ mod tests {
                 server
                     .mock("POST", "/api/v2/query")
                     .match_query(Matcher::UrlEncoded("org".into(), "".into()))
-                    .match_body(Matcher::Regex(r#"r\.id == "someid""#.to_string()))
+                    .match_body(Matcher::AllOf(vec![
+                        Matcher::Regex(r"stoppedTime = 1\.2 \*".to_string()),
+                        Matcher::Regex(r#"r\.id == "someid""#.to_string()),
+                    ]))
             }
 
             #[tokio::test]
@@ -533,6 +542,7 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
+                    target_cycle_time: 1.2,
                     response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
@@ -563,6 +573,7 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
+                    target_cycle_time: 1.2,
                     response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
@@ -606,6 +617,7 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
+                    target_cycle_time: 1.2,
                     response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();

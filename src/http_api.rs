@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::headers;
 use axum::http::{HeaderName, HeaderValue};
 use axum::response::{IntoResponse, Response};
@@ -8,6 +8,7 @@ use axum::{routing, Json, Router, TypedHeader};
 use bytes::{BufMut, BytesMut};
 use chrono::{DateTime, FixedOffset};
 use reqwest::{header, StatusCode};
+use serde::Deserialize;
 use tokio::sync::oneshot;
 use tracing::{error, instrument};
 
@@ -48,6 +49,12 @@ impl headers::Header for ClientTime {
     fn encode<E: Extend<HeaderValue>>(&self, _values: &mut E) {
         unimplemented!()
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TimelineQueryParams {
+    target_cycle_time: f32,
 }
 
 impl IntoResponse for TimelineResponse {
@@ -113,10 +120,12 @@ async fn health_handler(State(state): State<AppState>) -> Result<StatusCode, imp
 async fn timeline_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    Query(query): Query<TimelineQueryParams>,
 ) -> Result<TimelineResponse, impl IntoResponse> {
     let (response_channel, rx) = oneshot::channel();
     let request = TimelineRequest {
         id,
+        target_cycle_time: query.target_cycle_time,
         response_channel,
     };
     state
@@ -259,7 +268,7 @@ mod tests {
             let (performance_channel, _) = mpsc::channel(1);
             let app = app(health_channel, timeline_channel, performance_channel);
             let req = Request::builder()
-                .uri("/timeline/someid")
+                .uri("/timeline/someid?targetCycleTime=1.2")
                 .body(Body::empty())
                 .unwrap();
             (app, req)
@@ -274,12 +283,22 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn invalid_query_params() {
+            let (tx, _) = mpsc::channel(1);
+            let (app, mut req) = testing_fixture(tx);
+            *req.uri_mut() = "/timeline/someid?targetCycleTime=a".try_into().unwrap();
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        }
+
+        #[tokio::test]
         async fn request_sending_timeout() {
             let (tx, _rx) = mpsc::channel(1);
             tx.send({
                 let (response_channel, _) = oneshot::channel();
                 TimelineRequest {
                     id: Default::default(),
+                    target_cycle_time: Default::default(),
                     response_channel,
                 }
             })
