@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v1.0.0...v2.0.0) (2023-09-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* get client time as a query parameter
+* implement target cycle time timeline query param
+
+### Features
+
+* get client time as a query parameter ([faad666](https://github.com/cailloumajor/influxdb-compute-api/commit/faad666b5e69a605dcc51dfab409142786106122))
+* implement target cycle time timeline query param ([6487b7c](https://github.com/cailloumajor/influxdb-compute-api/commit/6487b7c4adb8c2fa91ecb4c8ce3cd4d85f2ef9f0))
+
+
+### Bug Fixes
+
+* **deps:** update rust crate chrono to 0.4.28 ([6212aaf](https://github.com/cailloumajor/influxdb-compute-api/commit/6212aafa37b610939378654156524e14810b011f))
+* **deps:** update rust crate clap to 4.4.1 ([aa46e49](https://github.com/cailloumajor/influxdb-compute-api/commit/aa46e494dc5e8f4673b03c79ece95091b2971d39))
+* **deps:** update rust crate clap to 4.4.2 ([16192c0](https://github.com/cailloumajor/influxdb-compute-api/commit/16192c00f4096c493242c2671d6fca3114641294))
+* **deps:** update rust crate url to 2.4.1 ([38969d5](https://github.com/cailloumajor/influxdb-compute-api/commit/38969d56a65eed4ab15a48810cb74aae39e4cb50))
+
 ## [1.0.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v0.1.7...v1.0.0) (2023-08-27)
 
 
