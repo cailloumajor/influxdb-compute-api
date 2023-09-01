@@ -1,10 +1,9 @@
 use std::time::Duration;
 
 use axum::extract::{Path, Query, State};
-use axum::headers;
-use axum::http::{HeaderName, HeaderValue};
+use axum::http::HeaderValue;
 use axum::response::{IntoResponse, Response};
-use axum::{routing, Json, Router, TypedHeader};
+use axum::{routing, Json, Router};
 use bytes::{BufMut, BytesMut};
 use chrono::{DateTime, FixedOffset};
 use reqwest::{header, StatusCode};
@@ -22,34 +21,6 @@ const CHANNEL_SEND_TIMEOUT: Duration = Duration::from_millis(100);
 
 const INTERNAL_ERROR: (StatusCode, &str) =
     (StatusCode::INTERNAL_SERVER_ERROR, "internal server error");
-
-static CLIENT_TIME_HEADER_NAME: HeaderName = HeaderName::from_static("client-time");
-
-struct ClientTime(DateTime<FixedOffset>);
-
-impl headers::Header for ClientTime {
-    fn name() -> &'static HeaderName {
-        &CLIENT_TIME_HEADER_NAME
-    }
-
-    fn decode<'i, I>(values: &mut I) -> Result<Self, headers::Error>
-    where
-        I: Iterator<Item = &'i HeaderValue>,
-    {
-        values
-            .next()
-            .ok_or_else(headers::Error::invalid)?
-            .to_str()
-            .map_err(|_| headers::Error::invalid())?
-            .parse::<DateTime<FixedOffset>>()
-            .map_err(|_| headers::Error::invalid())
-            .map(Self)
-    }
-
-    fn encode<E: Extend<HeaderValue>>(&self, _values: &mut E) {
-        unimplemented!()
-    }
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +44,12 @@ impl IntoResponse for TimelineResponse {
             Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
         }
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PerformanceQueryParams {
+    client_time: DateTime<FixedOffset>,
 }
 
 #[derive(Clone)]
@@ -146,12 +123,12 @@ async fn timeline_handler(
 async fn performance_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
-    TypedHeader(client_time): TypedHeader<ClientTime>,
+    Query(query): Query<PerformanceQueryParams>,
 ) -> Result<Json<f32>, impl IntoResponse> {
     let (response_channel, rx) = oneshot::channel();
     let request = PerformanceRequest {
         id,
-        now: client_time.0,
+        now: query.client_time,
         response_channel,
     };
     state
@@ -361,8 +338,7 @@ mod tests {
             let (timeline_channel, _) = mpsc::channel(1);
             let app = app(health_channel, timeline_channel, performance_channel);
             let req = Request::builder()
-                .uri("/performance/anid")
-                .header(&CLIENT_TIME_HEADER_NAME, "1984-12-09T11:30:00+05:00")
+                .uri("/performance/anid?clientTime=1984-12-09T11:30:00%2B05:00")
                 .body(Body::empty())
                 .unwrap();
             (app, req)
@@ -372,8 +348,7 @@ mod tests {
         async fn invalid_client_time() {
             let (tx, _) = mpsc::channel(1);
             let (app, mut req) = testing_fixture(tx);
-            let client_time = req.headers_mut().get_mut(&CLIENT_TIME_HEADER_NAME).unwrap();
-            *client_time = "invalid".try_into().unwrap();
+            *req.uri_mut() = "/performance/anid?clientTime=a".try_into().unwrap();
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         }
