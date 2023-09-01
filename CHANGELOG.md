@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.0.0...v2.1.0) (2023-09-01)
+
+
+### Features
+
+* use target cycle time to calculate performance ([3d28619](https://github.com/cailloumajor/influxdb-compute-api/commit/3d286190b6db1a109c4373bbd23332f0f2bef3c1))
+
 ## [2.0.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v1.0.0...v2.0.0) (2023-09-01)
 
 
