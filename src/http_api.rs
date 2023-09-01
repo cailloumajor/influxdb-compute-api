@@ -50,6 +50,7 @@ impl IntoResponse for TimelineResponse {
 #[serde(rename_all = "camelCase")]
 struct PerformanceQueryParams {
     client_time: DateTime<FixedOffset>,
+    target_cycle_time: f32,
 }
 
 #[derive(Clone)]
@@ -129,6 +130,7 @@ async fn performance_handler(
     let request = PerformanceRequest {
         id,
         now: query.client_time,
+        target_cycle_time: query.target_cycle_time,
         response_channel,
     };
     state
@@ -338,14 +340,16 @@ mod tests {
             let (timeline_channel, _) = mpsc::channel(1);
             let app = app(health_channel, timeline_channel, performance_channel);
             let req = Request::builder()
-                .uri("/performance/anid?clientTime=1984-12-09T11:30:00%2B05:00")
+                .uri(
+                    "/performance/anid?clientTime=1984-12-09T11:30:00%2B05:00&targetCycleTime=12.3",
+                )
                 .body(Body::empty())
                 .unwrap();
             (app, req)
         }
 
         #[tokio::test]
-        async fn invalid_client_time() {
+        async fn invalid_query_params() {
             let (tx, _) = mpsc::channel(1);
             let (app, mut req) = testing_fixture(tx);
             *req.uri_mut() = "/performance/anid?clientTime=a".try_into().unwrap();
@@ -369,6 +373,7 @@ mod tests {
                 PerformanceRequest {
                     id: Default::default(),
                     now: Default::default(),
+                    target_cycle_time: Default::default(),
                     response_channel,
                 }
             })

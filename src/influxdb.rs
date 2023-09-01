@@ -66,6 +66,7 @@ pub(crate) type TimelineChannel = mpsc::Sender<TimelineRequest>;
 pub(crate) struct PerformanceRequest {
     pub(crate) id: String,
     pub(crate) now: DateTime<FixedOffset>,
+    pub(crate) target_cycle_time: f32,
     pub(crate) response_channel: oneshot::Sender<f32>,
 }
 
@@ -280,16 +281,14 @@ impl Client {
                             .into_iter()
                             .filter(|row| row.elapsed.is_positive() && !row.part_ref.is_empty())
                             .fold((0.0, 0), |(expected, done), row| {
-                                // TODO: query cycle time for each campaign.
-                                const CYCLE_TIME_SECONDS: f32 = 21.3;
                                 let end =
                                     row.end.with_timezone(&request.now.timezone()).naive_local();
                                 let duration = Duration::minutes(row.elapsed);
                                 let start = end - duration;
                                 let pause_duration = excluded_duration(start..end, &pauses);
                                 let effective_duration = duration - pause_duration;
-                                let expected_parts =
-                                    effective_duration.num_seconds() as f32 / CYCLE_TIME_SECONDS;
+                                let effective_seconds = effective_duration.num_seconds() as f32;
+                                let expected_parts = effective_seconds / request.target_cycle_time;
                                 (expected + expected_parts, done + row.good_parts)
                             });
                         f32::from(done_parts) / expected_parts * 100.0
@@ -696,6 +695,7 @@ mod tests {
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
+                    target_cycle_time: 21.3,
                     response_channel: tx,
                 };
                 let (performance_channel, task) = client.handle_performance();
@@ -727,6 +727,7 @@ mod tests {
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
+                    target_cycle_time: 21.3,
                     response_channel: tx,
                 };
                 let (performance_channel, task) = client.handle_performance();
@@ -767,6 +768,7 @@ mod tests {
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
+                    target_cycle_time: 21.3,
                     response_channel: tx,
                 };
                 let (performance_channel, task) = client.handle_performance();
