@@ -6,12 +6,14 @@ filterFields = (r) =>
   r._field == "cycle" or
   r._field == "cycleTimeOver"
 
+stoppedTime = __targetcycletimeplaceholder__ * 1.05
+
 colorFromStatuses = (r) =>
   ({r with color:
     if r.cycle then
       if r.cycleTimeOver then
         0
-      else if float(v: r.averageCycleTime) / 10.0 < 22.3 then
+      else if float(v: r.averageCycleTime) / 10.0 < stoppedTime then
         1
       else
         2

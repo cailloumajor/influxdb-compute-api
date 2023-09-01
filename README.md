@@ -64,9 +64,10 @@ Returns the timeline data.
 
 #### Parameters
 
-| Name        | Description |
-| ----------- | ----------- |
-| id _(path)_ | Partner ID  |
+| Name                            | Description       |
+| ------------------------------- | ----------------- |
+| id _(path)_                     | Partner ID        |
+| targetCycleTime _(query param)_ | Target cycle time |
 
 #### Response
 

@@ -1,4 +1,6 @@
 GET {{host}}/timeline/id1
+[QueryStringParams]
+targetCycleTime: 21.2
 
 HTTP 200
 Content-Type: application/msgpack
@@ -8,7 +10,8 @@ bytes startsWith hex,dc;
 
 
 GET {{host}}/performance/id2
-Client-Time: 2023-08-21T12:59:59+02:00
+[QueryStringParams]
+clientTime: 2023-08-21T12:59:59+02:00
 
 HTTP 200
 Content-Type: application/json
