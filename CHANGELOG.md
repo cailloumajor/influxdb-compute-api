@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.1.0...v2.2.0) (2023-09-06)
+
+
+### Features
+
+* use config API ([3ed0719](https://github.com/cailloumajor/influxdb-compute-api/commit/3ed0719c1146c596678732947d9e0ad08c1653c2))
+
+
+### Bug Fixes
+
+* **deps:** update rust crate chrono to 0.4.29 ([8a293d5](https://github.com/cailloumajor/influxdb-compute-api/commit/8a293d5651fbdec621ccef2ab2bab8f79b16f8b2))
+
 ## [2.1.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.0.0...v2.1.0) (2023-09-01)
 
 
