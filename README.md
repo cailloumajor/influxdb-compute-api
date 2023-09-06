@@ -41,10 +41,10 @@ Returns the performance ratio.
 
 #### Parameters
 
-| Name                     | Description                                 |
-| ------------------------ | ------------------------------------------- |
-| `id` _(path)_            | Partner ID                                  |
-| `Client-Time` _(header)_ | Client request timestamp ([RFC3339] format) |
+| Name                         | Description                                 |
+| ---------------------------- | ------------------------------------------- |
+| `id` _(path)_                | Partner ID                                  |
+| `clientTime` _(query param)_ | Client request timestamp ([RFC3339] format) |
 
 [RFC3339]: https://datatracker.ietf.org/doc/html/rfc3339
 
@@ -64,10 +64,9 @@ Returns the timeline data.
 
 #### Parameters
 
-| Name                            | Description       |
-| ------------------------------- | ----------------- |
-| id _(path)_                     | Partner ID        |
-| targetCycleTime _(query param)_ | Target cycle time |
+| Name        | Description |
+| ----------- | ----------- |
+| id _(path)_ | Partner ID  |
 
 #### Response
 
@@ -87,11 +86,13 @@ Timeline data consists of an array of arrays. Inner arrays contain following com
 
 ```ShellSession
 $ influxdb-compute-api --help
-Usage: influxdb-compute-api [OPTIONS] --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT> --shift-start-times <SHIFT_START_TIMES>
+Usage: influxdb-compute-api [OPTIONS] --config-api-url <CONFIG_API_URL> --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT> --shift-start-times <SHIFT_START_TIMES>
 
 Options:
       --listen-address <LISTEN_ADDRESS>
           Address to listen on [env: LISTEN_ADDRESS=] [default: 0.0.0.0:8080]
+      --config-api-url <CONFIG_API_URL>
+          Configuration API URL [env: CONFIG_API_URL=]
       --influxdb-url <INFLUXDB_URL>
           InfluxDB base URL [env: INFLUXDB_URL=] [default: http://influxdb:8086]
       --influxdb-api-token <INFLUXDB_API_TOKEN>

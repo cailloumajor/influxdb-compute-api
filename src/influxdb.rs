@@ -110,7 +110,7 @@ pub(crate) struct Client {
 }
 
 impl Client {
-    pub(crate) fn new(config: &Config) -> Self {
+    pub(crate) fn new(config: &Config, http_client: HttpClient) -> Self {
         let base_url = Arc::new(config.influxdb_url.clone());
         let auth_header = ArcStr::from(format!("Token {}", config.influxdb_api_token));
         let org = ArcStr::from(&config.influxdb_org);
@@ -118,7 +118,6 @@ impl Client {
         let measurement = ArcStr::from(&config.influxdb_measurement);
         let shift_start_times = Arc::new(config.shift_start_times.clone());
         let pauses = Arc::new(config.pauses.clone());
-        let http_client = HttpClient::new();
 
         Self {
             base_url,
@@ -185,7 +184,7 @@ impl Client {
 
     pub(crate) fn handle_health(&self) -> (HealthChannel, JoinHandle<()>) {
         let (tx, mut rx) = mpsc::channel::<HealthRequest>(1);
-        let cloned_self = self.clone();
+        let http_client = self.http_client.clone();
         let url = self.base_url.join("/health").unwrap();
 
         let task = tokio::spawn(
@@ -193,7 +192,7 @@ impl Client {
                 info!(status = "started");
 
                 while let Some(request) = rx.recv().await {
-                    let response = match cloned_self.http_client.get(url.clone()).send().await {
+                    let response = match http_client.get(url.clone()).send().await {
                         Ok(resp) => resp,
                         Err(err) => {
                             error!(kind = "request sending", %err);
@@ -346,7 +345,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let result = client.query::<()>(FLUX_QUERY).await;
                 assert!(result.is_err());
             }
@@ -367,7 +367,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let result = client.query::<()>(FLUX_QUERY).await;
                 mock.assert_async().await;
                 assert!(result.is_err());
@@ -390,7 +391,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let result = client.query::<(String, u8)>(FLUX_QUERY).await;
                 mock.assert_async().await;
                 assert!(result.is_err());
@@ -413,7 +415,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let rows = client.query::<(String, u8)>(FLUX_QUERY).await.unwrap();
                 mock.assert_async().await;
                 assert_eq!(rows, [("one".to_string(), 1), ("two".to_string(), 2)]);
@@ -434,7 +437,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = HealthRequest {
                     response_channel: tx,
@@ -462,7 +466,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = HealthRequest {
                     response_channel: tx,
@@ -492,7 +497,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = HealthRequest {
                     response_channel: tx,
@@ -537,7 +543,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
@@ -568,7 +575,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
@@ -612,7 +620,8 @@ mod tests {
                     shift_start_times: Default::default(),
                     pauses: Default::default(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
@@ -690,7 +699,8 @@ mod tests {
                     shift_start_times: shift_start_times(),
                     pauses: pauses(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
@@ -722,7 +732,8 @@ mod tests {
                     shift_start_times: shift_start_times(),
                     pauses: pauses(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
@@ -763,7 +774,8 @@ mod tests {
                     shift_start_times: shift_start_times(),
                     pauses: pauses(),
                 };
-                let client = Client::new(&config);
+                let http_client = HttpClient::new();
+                let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),

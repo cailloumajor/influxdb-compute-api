@@ -48,6 +48,22 @@ docker compose build
 # Start services
 docker compose up -d --quiet-pull influxdb influxdb-compute-api
 
+# Wait for config API to be ready
+docker compose up -d --quiet-pull config-api
+max_attempts=5
+wait_success=
+for i in $(seq 1 $max_attempts); do
+    if docker compose exec config-api wget --spider http://127.0.0.1:3000/; then
+        wait_success="true"
+        break
+    fi
+    echo "Waiting for config API to be healthy: try #$i failed" >&2
+    [[ $i != "$max_attempts" ]] && sleep 3
+done
+if [ "$wait_success" != "true" ]; then
+    die "Failure waiting for config API to be healthy"
+fi
+
 # Wait for service to be healthy
 max_attempts=4
 service="influxdb-compute-api"
