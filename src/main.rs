@@ -4,23 +4,28 @@ use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use futures_util::StreamExt;
 use influxdb_compute_api::CommonArgs;
-use level_filter::VerbosityLevelFilter;
 use signal_hook::consts::TERM_SIGNALS;
 use signal_hook::low_level::signal_name;
 use signal_hook_tokio::Signals;
 use tracing::{error, info, info_span, instrument, Instrument};
 use tracing_log::LogTracer;
 
+mod config_api;
 mod http_api;
 mod influxdb;
 mod level_filter;
 mod model;
 mod time;
 
+use level_filter::VerbosityLevelFilter;
+
 #[derive(Parser)]
 struct Args {
     #[command(flatten)]
     common: CommonArgs,
+
+    #[command(flatten)]
+    config_api: config_api::Config,
 
     #[command(flatten)]
     influxdb: influxdb::Config,
@@ -48,7 +53,12 @@ async fn main() -> anyhow::Result<()> {
 
     LogTracer::init_with_filter(args.verbose.log_level_filter())?;
 
-    let influxdb_client = influxdb::Client::new(&args.influxdb);
+    let http_client = reqwest::Client::new();
+
+    let config_api_client = config_api::Client::new(&args.config_api, http_client.clone());
+    let (config_channel, config_task) = config_api_client.handle_config();
+
+    let influxdb_client = influxdb::Client::new(&args.influxdb, http_client);
     let (health_channel, health_task) = influxdb_client.handle_health();
     let (timeline_channel, timeline_task) = influxdb_client.handle_timeline();
     let (performance_channel, performance_task) = influxdb_client.handle_performance();
@@ -56,7 +66,12 @@ async fn main() -> anyhow::Result<()> {
     let signals = Signals::new(TERM_SIGNALS).context("error registering termination signals")?;
     let signals_handle = signals.handle();
 
-    let app = http_api::app(health_channel, timeline_channel, performance_channel);
+    let app = http_api::app(
+        health_channel,
+        config_channel,
+        timeline_channel,
+        performance_channel,
+    );
     async move {
         info!(addr = %args.common.listen_address, msg = "start listening");
         if let Err(err) = Server::bind(&args.common.listen_address)
@@ -73,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
 
     signals_handle.close();
 
-    tokio::try_join!(health_task, timeline_task, performance_task)
+    tokio::try_join!(config_task, health_task, timeline_task, performance_task)
         .context("error joining tasks")?;
 
     Ok(())

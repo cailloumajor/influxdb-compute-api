@@ -1,6 +1,13 @@
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConfigFromApi {
+    pub(crate) target_cycle_time: f32,
+    pub(crate) target_efficiency: f32,
+}
 
 #[derive(Debug)]
 pub(crate) struct TimelineResponse(Vec<TimelineSlot>);

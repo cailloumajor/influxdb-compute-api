@@ -2,6 +2,13 @@ version: "3"
 
 services:
 
+  config-api:
+    build: ./config-api
+    ports:
+      - 3000:3000
+    volumes:
+      - ./config-api/config.json:/usr/src/config.json:ro
+
   influxdb:
     image: influxdb:2.7
     environment:
@@ -20,6 +27,7 @@ services:
       - /usr/local/bin/influxdb-compute-api
       - --verbose
     environment:
+      - CONFIG_API_URL=http://config-api:3000
       - INFLUXDB_API_TOKEN=integration_tests_token
       - INFLUXDB_ORG=integration_tests_org
       - INFLUXDB_BUCKET=integration_tests_bucket

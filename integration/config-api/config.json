@@ -1,0 +1,10 @@
+{
+  "id1": {
+    "targetCycleTime": 21.2,
+    "targetEfficiency": 0
+  },
+  "id2": {
+    "targetCycleTime": 21.3,
+    "targetEfficiency": 0
+  }
+}
