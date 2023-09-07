@@ -127,11 +127,11 @@ async fn timeline_handler(
         .send_timeout(request, CHANNEL_SEND_TIMEOUT)
         .await
         .map_err(|err| {
-            error!(kind="request channel sending", %err);
+            error!(kind = "timeline request channel sending", %err);
             INTERNAL_ERROR
         })?;
     rx.await.map_err(|err| {
-        error!(kind="response channel receiving", %err);
+        error!(kind = "timeline response channel receiving", %err);
         INTERNAL_ERROR
     })
 }
@@ -173,11 +173,11 @@ async fn performance_handler(
         .send_timeout(request, CHANNEL_SEND_TIMEOUT)
         .await
         .map_err(|err| {
-            error!(kind="request channel sending", %err);
+            error!(kind = "performance request channel sending", %err);
             INTERNAL_ERROR
         })?;
     rx.await.map(Json).map_err(|err| {
-        error!(kind="response channel receiving", %err);
+        error!(kind = "performance response channel receiving", %err);
         INTERNAL_ERROR
     })
 }
