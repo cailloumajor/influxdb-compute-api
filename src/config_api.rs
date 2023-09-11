@@ -40,7 +40,7 @@ impl Client {
     }
 
     pub(crate) fn handle_config(&self) -> (ConfigChannel, JoinHandle<()>) {
-        let (tx, mut rx) = roundtrip_channel::<ConfigRequest, ConfigFromApi>(1);
+        let (tx, mut rx) = roundtrip_channel::<ConfigRequest, ConfigFromApi>(10);
         let cloned_self = self.clone();
 
         let task = tokio::spawn(

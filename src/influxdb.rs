@@ -177,7 +177,7 @@ impl Client {
     }
 
     pub(crate) fn handle_health(&self) -> (HealthChannel, JoinHandle<()>) {
-        let (tx, mut rx) = roundtrip_channel(1);
+        let (tx, mut rx) = roundtrip_channel(10);
         let http_client = self.http_client.clone();
         let url = self.base_url.join("/health").unwrap();
 
@@ -208,7 +208,7 @@ impl Client {
 
     pub(crate) fn handle_timeline(&self) -> (TimelineChannel, JoinHandle<()>) {
         const FLUX_QUERY: &str = include_str!("timeline.flux");
-        let (tx, mut rx) = roundtrip_channel::<TimelineRequest, TimelineResponse>(1);
+        let (tx, mut rx) = roundtrip_channel::<TimelineRequest, TimelineResponse>(10);
         let cloned_self = self.clone();
 
         let task = tokio::spawn(
@@ -252,7 +252,7 @@ impl Client {
 
     pub(crate) fn handle_performance(&self) -> (PerformanceChannel, JoinHandle<()>) {
         const FLUX_QUERY: &str = include_str!("performance.flux");
-        let (tx, mut rx) = roundtrip_channel::<PerformanceRequest, f32>(1);
+        let (tx, mut rx) = roundtrip_channel::<PerformanceRequest, f32>(10);
         let cloned_self = self.clone();
 
         let task = tokio::spawn(
