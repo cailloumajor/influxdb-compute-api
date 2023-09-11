@@ -12,6 +12,7 @@ use tracing_log::LogTracer;
 
 mod channel;
 mod config_api;
+mod headers;
 mod http_api;
 mod influxdb;
 mod level_filter;

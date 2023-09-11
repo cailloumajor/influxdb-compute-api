@@ -8,11 +8,10 @@ bytes startsWith hex,dc;
 
 
 GET {{host}}/performance/id2
-[QueryStringParams]
-clientTime: 2023-08-21T12:59:59+02:00
+Client-Timezone: Etc/GMT-2
 
 HTTP 200
 Content-Type: application/json
 [Asserts]
 jsonpath "$" > 48.5
-jsonpath "$" < 48.6
+jsonpath "$" < 48.7
