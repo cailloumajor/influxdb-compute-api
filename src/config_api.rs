@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use clap::Args;
 use reqwest::{header, Client as HttpClient};
-use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tracing::{error, info, info_span, Instrument};
 use url::Url;
 
+use crate::channel::{roundtrip_channel, RoundtripSender};
 use crate::model::ConfigFromApi;
 
 #[derive(Args)]
@@ -25,10 +25,9 @@ pub(crate) struct Client {
 
 pub(crate) struct ConfigRequest {
     pub(crate) id: String,
-    pub(crate) response_channel: oneshot::Sender<ConfigFromApi>,
 }
 
-pub(crate) type ConfigChannel = mpsc::Sender<ConfigRequest>;
+pub(crate) type ConfigChannel = RoundtripSender<ConfigRequest, ConfigFromApi>;
 
 impl Client {
     pub(crate) fn new(config: &Config, http_client: HttpClient) -> Self {
@@ -41,14 +40,14 @@ impl Client {
     }
 
     pub(crate) fn handle_config(&self) -> (ConfigChannel, JoinHandle<()>) {
-        let (tx, mut rx) = mpsc::channel::<ConfigRequest>(1);
+        let (tx, mut rx) = roundtrip_channel::<ConfigRequest, ConfigFromApi>(1);
         let cloned_self = self.clone();
 
         let task = tokio::spawn(
             async move {
                 info!(status = "started");
 
-                while let Some(request) = rx.recv().await {
+                while let Some((request, reply_tx)) = rx.recv().await {
                     let url = match cloned_self.config_url.join(&request.id) {
                         Ok(url) => url,
                         Err(err) => {
@@ -81,7 +80,7 @@ impl Client {
                             continue;
                         }
                     };
-                    if request.response_channel.send(config_from_api).is_err() {
+                    if reply_tx.send(config_from_api).is_err() {
                         error!(kind = "response channel sending");
                     }
                 }
@@ -98,6 +97,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use mockito::{Mock, Server};
+    use tokio::sync::oneshot;
 
     use super::*;
 
@@ -128,10 +128,9 @@ mod tests {
             let (tx, rx) = oneshot::channel();
             let request = ConfigRequest {
                 id: "testid".to_string(),
-                response_channel: tx,
             };
             let (config_channel, task) = client.handle_config();
-            config_channel.send(request).await.unwrap();
+            config_channel.send(request, tx).await;
             assert!(rx.await.is_err());
             mock.assert_async().await;
             assert!(!task.is_finished());
@@ -155,10 +154,9 @@ mod tests {
             let (tx, rx) = oneshot::channel();
             let request = ConfigRequest {
                 id: "testid".to_string(),
-                response_channel: tx,
             };
             let (config_channel, task) = client.handle_config();
-            config_channel.send(request).await.unwrap();
+            config_channel.send(request, tx).await;
             assert!(rx.await.is_err());
             mock.assert_async().await;
             assert!(!task.is_finished());
@@ -179,10 +177,9 @@ mod tests {
             let (tx, rx) = oneshot::channel();
             let request = ConfigRequest {
                 id: "testid".to_string(),
-                response_channel: tx,
             };
             let (config_channel, task) = client.handle_config();
-            config_channel.send(request).await.unwrap();
+            config_channel.send(request, tx).await;
             assert!(rx.await.is_err());
             mock.assert_async().await;
             assert!(!task.is_finished());
@@ -205,10 +202,9 @@ mod tests {
             let (tx, rx) = oneshot::channel();
             let request = ConfigRequest {
                 id: "testid".to_string(),
-                response_channel: tx,
             };
             let (config_channel, task) = client.handle_config();
-            config_channel.send(request).await.unwrap();
+            config_channel.send(request, tx).await;
             assert!(rx.await.is_err());
             mock.assert_async().await;
             assert!(!task.is_finished());
@@ -231,10 +227,9 @@ mod tests {
             let (tx, rx) = oneshot::channel();
             let request = ConfigRequest {
                 id: "testid".to_string(),
-                response_channel: tx,
             };
             let (config_channel, task) = client.handle_config();
-            config_channel.send(request).await.unwrap();
+            config_channel.send(request, tx).await;
             let config = rx.await.unwrap();
             assert_eq!(
                 config,
