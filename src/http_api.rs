@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderValue;
 use axum::response::{IntoResponse, Response};
@@ -8,19 +6,15 @@ use bytes::{BufMut, BytesMut};
 use chrono::{DateTime, FixedOffset};
 use reqwest::{header, StatusCode};
 use serde::Deserialize;
-use tokio::sync::oneshot;
 use tracing::{error, instrument};
 
 use crate::config_api::{ConfigChannel, ConfigRequest};
 use crate::influxdb::{
-    HealthChannel, HealthRequest, PerformanceChannel, PerformanceRequest, TimelineChannel,
-    TimelineRequest,
+    HealthChannel, PerformanceChannel, PerformanceRequest, TimelineChannel, TimelineRequest,
 };
 use crate::model::{ConfigFromApi, TimelineResponse};
 
 type HandlerError = (StatusCode, &'static str);
-
-const CHANNEL_SEND_TIMEOUT: Duration = Duration::from_millis(100);
 
 const INTERNAL_ERROR: HandlerError = (StatusCode::INTERNAL_SERVER_ERROR, "internal server error");
 
@@ -49,45 +43,25 @@ struct PerformanceQueryParams {
 }
 
 #[derive(Clone)]
-struct AppState {
-    health_channel: HealthChannel,
-    config_channel: ConfigChannel,
-    timeline_channel: TimelineChannel,
-    performance_channel: PerformanceChannel,
+pub(crate) struct AppState {
+    pub(crate) health_channel: HealthChannel,
+    pub(crate) config_channel: ConfigChannel,
+    pub(crate) timeline_channel: TimelineChannel,
+    pub(crate) performance_channel: PerformanceChannel,
 }
 
-pub(crate) fn app(
-    health_channel: HealthChannel,
-    config_channel: ConfigChannel,
-    timeline_channel: TimelineChannel,
-    performance_channel: PerformanceChannel,
-) -> Router {
+pub(crate) fn app(state: AppState) -> Router {
     Router::new()
         .route("/health", routing::get(health_handler))
         .route("/timeline/:id", routing::get(timeline_handler))
         .route("/performance/:id", routing::get(performance_handler))
-        .with_state(AppState {
-            health_channel,
-            config_channel,
-            timeline_channel,
-            performance_channel,
-        })
+        .with_state(state)
 }
 
 #[instrument(name = "health_api_handler", skip_all)]
 async fn health_handler(State(state): State<AppState>) -> Result<StatusCode, HandlerError> {
-    let (response_channel, rx) = oneshot::channel();
-    let request = HealthRequest { response_channel };
-    state
-        .health_channel
-        .send_timeout(request, CHANNEL_SEND_TIMEOUT)
-        .await
-        .map_err(|err| {
-            error!(kind = "request channel sending", %err);
-            INTERNAL_ERROR
-        })?;
-    rx.await.map_err(|err| {
-        error!(kind = "response channel receiving", %err);
+    state.health_channel.roundtrip(()).await.map_err(|err| {
+        error!(kind = "health channel roundtrip", %err);
         INTERNAL_ERROR
     })
 }
@@ -97,43 +71,29 @@ async fn timeline_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<TimelineResponse, HandlerError> {
-    let (response_channel, rx) = oneshot::channel();
-    let config_request = ConfigRequest {
-        id: id.clone(),
-        response_channel,
-    };
-    state
-        .config_channel
-        .send_timeout(config_request, CHANNEL_SEND_TIMEOUT)
-        .await
-        .map_err(|err| {
-            error!(kind = "config request channel sending", %err);
-            INTERNAL_ERROR
-        })?;
+    let config_request = ConfigRequest { id: id.clone() };
     let ConfigFromApi {
         target_cycle_time, ..
-    } = rx.await.map_err(|err| {
-        error!(kind = "config response channel receiving", %err);
-        INTERNAL_ERROR
-    })?;
-    let (response_channel, rx) = oneshot::channel();
-    let request = TimelineRequest {
+    } = state
+        .config_channel
+        .roundtrip(config_request)
+        .await
+        .map_err(|err| {
+            error!(kind = "config channel roundtrip", %err);
+            INTERNAL_ERROR
+        })?;
+    let timeline_request = TimelineRequest {
         id,
         target_cycle_time,
-        response_channel,
     };
     state
         .timeline_channel
-        .send_timeout(request, CHANNEL_SEND_TIMEOUT)
+        .roundtrip(timeline_request)
         .await
         .map_err(|err| {
-            error!(kind = "timeline request channel sending", %err);
+            error!(kind = "timeline channel roundtrip", %err);
             INTERNAL_ERROR
-        })?;
-    rx.await.map_err(|err| {
-        error!(kind = "timeline response channel receiving", %err);
-        INTERNAL_ERROR
-    })
+        })
 }
 
 #[instrument(name = "performance_api_handler", skip_all)]
@@ -142,107 +102,71 @@ async fn performance_handler(
     Path(id): Path<String>,
     Query(query): Query<PerformanceQueryParams>,
 ) -> Result<Json<f32>, HandlerError> {
-    let (response_channel, rx) = oneshot::channel();
-    let config_request = ConfigRequest {
-        id: id.clone(),
-        response_channel,
-    };
-    state
-        .config_channel
-        .send_timeout(config_request, CHANNEL_SEND_TIMEOUT)
-        .await
-        .map_err(|err| {
-            error!(kind = "config request channel sending", %err);
-            INTERNAL_ERROR
-        })?;
+    let config_request = ConfigRequest { id: id.clone() };
     let ConfigFromApi {
         target_cycle_time, ..
-    } = rx.await.map_err(|err| {
-        error!(kind = "config response channel receiving", %err);
-        INTERNAL_ERROR
-    })?;
-    let (response_channel, rx) = oneshot::channel();
-    let request = PerformanceRequest {
+    } = state
+        .config_channel
+        .roundtrip(config_request)
+        .await
+        .map_err(|err| {
+            error!(kind = "config channel roundtrip", %err);
+            INTERNAL_ERROR
+        })?;
+    let performance_request = PerformanceRequest {
         id,
         now: query.client_time,
         target_cycle_time,
-        response_channel,
     };
     state
         .performance_channel
-        .send_timeout(request, CHANNEL_SEND_TIMEOUT)
+        .roundtrip(performance_request)
         .await
+        .map(Json)
         .map_err(|err| {
-            error!(kind = "performance request channel sending", %err);
+            error!(kind = "performance channel roundtrip", %err);
             INTERNAL_ERROR
-        })?;
-    rx.await.map(Json).map_err(|err| {
-        error!(kind = "performance response channel receiving", %err);
-        INTERNAL_ERROR
-    })
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
     use axum::http::Request;
-    use tokio::sync::mpsc;
     use tower::ServiceExt;
+
+    use crate::channel::{roundtrip_channel, RoundtripSender};
 
     use super::*;
 
-    fn successful_config_tx() -> mpsc::Sender<ConfigRequest> {
-        let (tx, mut rx) = mpsc::channel::<ConfigRequest>(1);
+    fn successful_config_tx() -> RoundtripSender<ConfigRequest, ConfigFromApi> {
+        let (tx, mut rx) = roundtrip_channel(1);
         tokio::spawn(async move {
-            let request_tx = rx.recv().await.expect("channel has been closed");
+            let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
             let config = ConfigFromApi {
                 target_cycle_time: 1.2,
                 target_efficiency: 3.4,
             };
-            request_tx
-                .response_channel
-                .send(config)
-                .expect("error sending response");
-        });
-        tx
-    }
-
-    async fn filled_config_tx() -> mpsc::Sender<ConfigRequest> {
-        let (tx, _rx) = mpsc::channel(1);
-        tx.send({
-            let (response_channel, _) = oneshot::channel();
-            ConfigRequest {
-                id: Default::default(),
-                response_channel,
-            }
-        })
-        .await
-        .unwrap();
-        tx
-    }
-
-    fn dropping_config_tx() -> mpsc::Sender<ConfigRequest> {
-        let (tx, mut rx) = mpsc::channel(1);
-        tokio::spawn(async move {
-            // Consume and drop the response channel
-            let _ = rx.recv().await.expect("channel has been closed");
+            reply_tx.send(config).expect("error sending response");
         });
         tx
     }
 
     mod health_handler {
+        use crate::channel::roundtrip_channel;
+
         use super::*;
 
         fn testing_fixture(health_channel: HealthChannel) -> (Router, Request<Body>) {
-            let (config_channel, _) = mpsc::channel(1);
-            let (timeline_channel, _) = mpsc::channel(1);
-            let (performance_channel, _) = mpsc::channel(1);
-            let app = app(
+            let (config_channel, _) = roundtrip_channel(1);
+            let (timeline_channel, _) = roundtrip_channel(1);
+            let (performance_channel, _) = roundtrip_channel(1);
+            let app = app(AppState {
                 health_channel,
                 config_channel,
                 timeline_channel,
                 performance_channel,
-            );
+            });
             let req = Request::builder()
                 .uri("/health")
                 .body(Body::empty())
@@ -251,34 +175,8 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn request_sending_error() {
-            let (tx, _) = mpsc::channel(1);
-            let (app, req) = testing_fixture(tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn request_sending_timeout() {
-            let (tx, _rx) = mpsc::channel(1);
-            tx.send({
-                let (response_channel, _) = oneshot::channel();
-                HealthRequest { response_channel }
-            })
-            .await
-            .unwrap();
-            let (app, req) = testing_fixture(tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn outcome_channel_receiving_error() {
-            let (tx, mut rx) = mpsc::channel(1);
-            tokio::spawn(async move {
-                // Consume and drop the response channel
-                let _ = rx.recv().await.expect("channel has been closed");
-            });
+        async fn roundtrip_error() {
+            let (tx, _) = roundtrip_channel(1);
             let (app, req) = testing_fixture(tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -286,11 +184,10 @@ mod tests {
 
         #[tokio::test]
         async fn unhealthy() {
-            let (tx, mut rx) = mpsc::channel::<HealthRequest>(1);
+            let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let request_tx = rx.recv().await.expect("channel has been closed");
-                request_tx
-                    .response_channel
+                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                reply_tx
                     .send(StatusCode::INTERNAL_SERVER_ERROR)
                     .expect("error sending response");
             });
@@ -301,11 +198,10 @@ mod tests {
 
         #[tokio::test]
         async fn healthy() {
-            let (tx, mut rx) = mpsc::channel::<HealthRequest>(1);
+            let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let request_tx = rx.recv().await.expect("channel has been closed");
-                request_tx
-                    .response_channel
+                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                reply_tx
                     .send(StatusCode::OK)
                     .expect("error sending response");
             });
@@ -318,6 +214,7 @@ mod tests {
     mod timeline_handler {
         use std::vec;
 
+        use crate::channel::{roundtrip_channel, RoundtripSender};
         use crate::model::TimelineSlot;
 
         use super::*;
@@ -326,14 +223,14 @@ mod tests {
             config_channel: ConfigChannel,
             timeline_channel: TimelineChannel,
         ) -> (Router, Request<Body>) {
-            let (health_channel, _) = mpsc::channel(1);
-            let (performance_channel, _) = mpsc::channel(1);
-            let app = app(
+            let (health_channel, _) = roundtrip_channel(1);
+            let (performance_channel, _) = roundtrip_channel(1);
+            let app = app(AppState {
                 health_channel,
                 config_channel,
                 timeline_channel,
                 performance_channel,
-            );
+            });
             let req = Request::builder()
                 .uri("/timeline/someid")
                 .body(Body::empty())
@@ -341,10 +238,10 @@ mod tests {
             (app, req)
         }
 
-        fn successful_timeline_tx() -> mpsc::Sender<TimelineRequest> {
-            let (tx, mut rx) = mpsc::channel::<TimelineRequest>(1);
+        fn successful_timeline_tx() -> RoundtripSender<TimelineRequest, TimelineResponse> {
+            let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let request_tx = rx.recv().await.expect("channel has been closed");
+                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
                 let slots: Vec<TimelineSlot> = vec![
                     TimelineSlot {
                         start: "1970-01-01T00:00:00Z".parse().unwrap(),
@@ -355,17 +252,14 @@ mod tests {
                         color: Some(5),
                     },
                 ];
-                request_tx
-                    .response_channel
-                    .send(slots.into())
-                    .expect("error sending response");
+                reply_tx.send(slots.into()).expect("error sending response");
             });
             tx
         }
 
         #[tokio::test]
-        async fn config_request_sending_error() {
-            let (config_tx, _) = mpsc::channel(1);
+        async fn config_roundtrip_error() {
+            let (config_tx, _) = roundtrip_channel(1);
             let timeline_tx = successful_timeline_tx();
             let (app, req) = testing_fixture(config_tx, timeline_tx);
             let res = app.oneshot(req).await.unwrap();
@@ -373,60 +267,9 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn config_request_sending_timeout() {
-            let config_tx = filled_config_tx().await;
-            let timeline_tx = successful_timeline_tx();
-            let (app, req) = testing_fixture(config_tx, timeline_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn config_outcome_channel_receiving_error() {
-            let config_tx = dropping_config_tx();
-            let timeline_tx = successful_timeline_tx();
-            let (app, req) = testing_fixture(config_tx, timeline_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn timeline_request_sending_error() {
+        async fn timeline_roundtrip_error() {
             let config_tx = successful_config_tx();
-            let (timeline_tx, _) = mpsc::channel(1);
-            let (app, req) = testing_fixture(config_tx, timeline_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn timeline_request_sending_timeout() {
-            let config_tx = successful_config_tx();
-            let (timeline_tx, _timeline_rx) = mpsc::channel(1);
-            timeline_tx
-                .send({
-                    let (response_channel, _) = oneshot::channel();
-                    TimelineRequest {
-                        id: Default::default(),
-                        target_cycle_time: Default::default(),
-                        response_channel,
-                    }
-                })
-                .await
-                .unwrap();
-            let (app, req) = testing_fixture(config_tx, timeline_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn timeline_outcome_channel_receiving_error() {
-            let config_tx = successful_config_tx();
-            let (timeline_tx, mut timeline_rx) = mpsc::channel(1);
-            tokio::spawn(async move {
-                // Consume and drop the response channel
-                let _ = timeline_rx.recv().await.expect("channel has been closed");
-            });
+            let (timeline_tx, _) = roundtrip_channel(1);
             let (app, req) = testing_fixture(config_tx, timeline_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -455,14 +298,14 @@ mod tests {
             config_channel: ConfigChannel,
             performance_channel: PerformanceChannel,
         ) -> (Router, Request<Body>) {
-            let (health_channel, _) = mpsc::channel(1);
-            let (timeline_channel, _) = mpsc::channel(1);
-            let app = app(
+            let (health_channel, _) = roundtrip_channel(1);
+            let (timeline_channel, _) = roundtrip_channel(1);
+            let app = app(AppState {
                 health_channel,
                 config_channel,
                 timeline_channel,
                 performance_channel,
-            );
+            });
             let req = Request::builder()
                 .uri("/performance/anid?clientTime=1984-12-09T11:30:00%2B05:00")
                 .body(Body::empty())
@@ -470,21 +313,18 @@ mod tests {
             (app, req)
         }
 
-        fn successful_performance_tx() -> mpsc::Sender<PerformanceRequest> {
-            let (tx, mut rx) = mpsc::channel::<PerformanceRequest>(1);
+        fn successful_performance_tx() -> RoundtripSender<PerformanceRequest, f32> {
+            let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let request_tx = rx.recv().await.expect("channel has been closed");
-                request_tx
-                    .response_channel
-                    .send(42.4242)
-                    .expect("error sending response");
+                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                reply_tx.send(42.4242).expect("error sending response");
             });
             tx
         }
 
         #[tokio::test]
-        async fn config_request_sending_error() {
-            let (config_tx, _) = mpsc::channel(1);
+        async fn config_roundtrip_error() {
+            let (config_tx, _) = roundtrip_channel(1);
             let performance_tx = successful_performance_tx();
             let (app, req) = testing_fixture(config_tx, performance_tx);
             let res = app.oneshot(req).await.unwrap();
@@ -492,64 +332,9 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn config_request_sending_timeout() {
-            let config_tx = filled_config_tx().await;
-            let performance_tx = successful_performance_tx();
-            let (app, req) = testing_fixture(config_tx, performance_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn config_outcome_channel_receiving_error() {
-            let config_tx = dropping_config_tx();
-            let performance_tx = successful_performance_tx();
-            let (app, req) = testing_fixture(config_tx, performance_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn performance_request_sending_error() {
+        async fn performance_roundtrip_error() {
             let config_tx = successful_config_tx();
-            let (performance_tx, _) = mpsc::channel(1);
-            let (app, req) = testing_fixture(config_tx, performance_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn performance_request_sending_timeout() {
-            let config_tx = successful_config_tx();
-            let (performance_tx, _performance_rx) = mpsc::channel(1);
-            performance_tx
-                .send({
-                    let (response_channel, _) = oneshot::channel();
-                    PerformanceRequest {
-                        id: Default::default(),
-                        now: Default::default(),
-                        target_cycle_time: Default::default(),
-                        response_channel,
-                    }
-                })
-                .await
-                .unwrap();
-            let (app, req) = testing_fixture(config_tx, performance_tx);
-            let res = app.oneshot(req).await.unwrap();
-            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        }
-
-        #[tokio::test]
-        async fn performance_outcome_channel_receiving_error() {
-            let config_tx = successful_config_tx();
-            let (performance_tx, mut performance_rx) = mpsc::channel(1);
-            tokio::spawn(async move {
-                // Consume and drop the response channel
-                let _ = performance_rx
-                    .recv()
-                    .await
-                    .expect("channel has been closed");
-            });
+            let (performance_tx, _) = roundtrip_channel(1);
             let (app, req) = testing_fixture(config_tx, performance_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);

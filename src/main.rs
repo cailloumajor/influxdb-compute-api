@@ -10,6 +10,7 @@ use signal_hook_tokio::Signals;
 use tracing::{error, info, info_span, instrument, Instrument};
 use tracing_log::LogTracer;
 
+mod channel;
 mod config_api;
 mod http_api;
 mod influxdb;
@@ -66,12 +67,12 @@ async fn main() -> anyhow::Result<()> {
     let signals = Signals::new(TERM_SIGNALS).context("error registering termination signals")?;
     let signals_handle = signals.handle();
 
-    let app = http_api::app(
+    let app = http_api::app(http_api::AppState {
         health_channel,
         config_channel,
         timeline_channel,
         performance_channel,
-    );
+    });
     async move {
         info!(addr = %args.common.listen_address, msg = "start listening");
         if let Err(err) = Server::bind(&args.common.listen_address)

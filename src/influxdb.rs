@@ -9,11 +9,11 @@ use futures_util::TryStreamExt;
 use reqwest::{header, Client as HttpClient, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use tokio::sync::{mpsc, oneshot};
 use tokio::task::{spawn_blocking, JoinHandle};
 use tracing::{error, info, info_span, instrument, Instrument};
 use url::Url;
 
+use crate::channel::{roundtrip_channel, RoundtripSender};
 use crate::model::{TimelineResponse, TimelineSlot};
 use crate::time::{determine_shift_start, excluded_duration, time_span_parser};
 
@@ -49,28 +49,22 @@ pub(crate) struct Config {
     pauses: Vec<(NaiveTime, NaiveTime)>,
 }
 
-pub(crate) struct HealthRequest {
-    pub(crate) response_channel: oneshot::Sender<StatusCode>,
-}
-
-pub(crate) type HealthChannel = mpsc::Sender<HealthRequest>;
+pub(crate) type HealthChannel = RoundtripSender<(), StatusCode>;
 
 pub(crate) struct TimelineRequest {
     pub(crate) id: String,
     pub(crate) target_cycle_time: f32,
-    pub(crate) response_channel: oneshot::Sender<TimelineResponse>,
 }
 
-pub(crate) type TimelineChannel = mpsc::Sender<TimelineRequest>;
+pub(crate) type TimelineChannel = RoundtripSender<TimelineRequest, TimelineResponse>;
 
 pub(crate) struct PerformanceRequest {
     pub(crate) id: String,
     pub(crate) now: DateTime<FixedOffset>,
     pub(crate) target_cycle_time: f32,
-    pub(crate) response_channel: oneshot::Sender<f32>,
 }
 
-pub(crate) type PerformanceChannel = mpsc::Sender<PerformanceRequest>;
+pub(crate) type PerformanceChannel = RoundtripSender<PerformanceRequest, f32>;
 
 #[derive(Deserialize)]
 struct QueryResponse {
@@ -183,7 +177,7 @@ impl Client {
     }
 
     pub(crate) fn handle_health(&self) -> (HealthChannel, JoinHandle<()>) {
-        let (tx, mut rx) = mpsc::channel::<HealthRequest>(1);
+        let (tx, mut rx) = roundtrip_channel(10);
         let http_client = self.http_client.clone();
         let url = self.base_url.join("/health").unwrap();
 
@@ -191,7 +185,7 @@ impl Client {
             async move {
                 info!(status = "started");
 
-                while let Some(request) = rx.recv().await {
+                while let Some((_, reply_tx)) = rx.recv().await {
                     let response = match http_client.get(url.clone()).send().await {
                         Ok(resp) => resp,
                         Err(err) => {
@@ -199,7 +193,7 @@ impl Client {
                             continue;
                         }
                     };
-                    if request.response_channel.send(response.status()).is_err() {
+                    if reply_tx.send(response.status()).is_err() {
                         error!(kind = "response channel sending");
                     }
                 }
@@ -214,14 +208,14 @@ impl Client {
 
     pub(crate) fn handle_timeline(&self) -> (TimelineChannel, JoinHandle<()>) {
         const FLUX_QUERY: &str = include_str!("timeline.flux");
-        let (tx, mut rx) = mpsc::channel::<TimelineRequest>(1);
+        let (tx, mut rx) = roundtrip_channel::<TimelineRequest, TimelineResponse>(10);
         let cloned_self = self.clone();
 
         let task = tokio::spawn(
             async move {
                 info!(status = "started");
 
-                while let Some(request) = rx.recv().await {
+                while let Some((request, reply_tx)) = rx.recv().await {
                     let flux_query = FLUX_QUERY
                         .replace("__idplaceholder__", &request.id)
                         .replace(
@@ -243,7 +237,7 @@ impl Client {
                     })
                     .await
                     .unwrap();
-                    if request.response_channel.send(slots.into()).is_err() {
+                    if reply_tx.send(slots.into()).is_err() {
                         error!(kind = "response channel sending");
                     }
                 }
@@ -258,14 +252,14 @@ impl Client {
 
     pub(crate) fn handle_performance(&self) -> (PerformanceChannel, JoinHandle<()>) {
         const FLUX_QUERY: &str = include_str!("performance.flux");
-        let (tx, mut rx) = mpsc::channel::<PerformanceRequest>(1);
+        let (tx, mut rx) = roundtrip_channel::<PerformanceRequest, f32>(10);
         let cloned_self = self.clone();
 
         let task = tokio::spawn(
             async move {
                 info!(status = "started");
 
-                while let Some(request) = rx.recv().await {
+                while let Some((request, reply_tx)) = rx.recv().await {
                     let start_time =
                         determine_shift_start(request.now, &cloned_self.shift_start_times);
                     let flux_query = FLUX_QUERY
@@ -294,7 +288,7 @@ impl Client {
                     })
                     .await
                     .unwrap();
-                    if request.response_channel.send(performance).is_err() {
+                    if reply_tx.send(performance).is_err() {
                         error!(kind = "response channel sending");
                     }
                 }
@@ -314,6 +308,7 @@ mod tests {
 
     mod client {
         use mockito::{Matcher, Mock, Server};
+        use tokio::sync::oneshot;
 
         use super::*;
 
@@ -440,11 +435,8 @@ mod tests {
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
-                let request = HealthRequest {
-                    response_channel: tx,
-                };
                 let (health_channel, task) = client.handle_health();
-                health_channel.send(request).await.unwrap();
+                health_channel.send((), tx).await;
                 assert!(rx.await.is_err());
                 assert!(!task.is_finished());
             }
@@ -469,11 +461,8 @@ mod tests {
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
-                let request = HealthRequest {
-                    response_channel: tx,
-                };
                 let (health_channel, task) = client.handle_health();
-                health_channel.send(request).await.unwrap();
+                health_channel.send((), tx).await;
                 let status_code = rx.await.unwrap();
                 assert_eq!(status_code, 503);
                 mock.assert_async().await;
@@ -500,11 +489,8 @@ mod tests {
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
                 let (tx, rx) = oneshot::channel();
-                let request = HealthRequest {
-                    response_channel: tx,
-                };
                 let (health_channel, task) = client.handle_health();
-                health_channel.send(request).await.unwrap();
+                health_channel.send((), tx).await;
                 let status_code = rx.await.unwrap();
                 assert_eq!(status_code, 200);
                 mock.assert_async().await;
@@ -549,10 +535,9 @@ mod tests {
                 let request = TimelineRequest {
                     id: "someid".to_string(),
                     target_cycle_time: 1.2,
-                    response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
-                timeline_channel.send(request).await.unwrap();
+                timeline_channel.send(request, tx).await;
                 assert!(rx.await.is_err());
                 mock.assert_async().await;
                 assert!(!task.is_finished());
@@ -581,10 +566,9 @@ mod tests {
                 let request = TimelineRequest {
                     id: "someid".to_string(),
                     target_cycle_time: 1.2,
-                    response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
-                timeline_channel.send(request).await.unwrap();
+                timeline_channel.send(request, tx).await;
                 let slots = rx.await.unwrap();
                 assert_eq!(slots.into_inner(), vec![]);
                 mock.assert_async().await;
@@ -626,10 +610,9 @@ mod tests {
                 let request = TimelineRequest {
                     id: "someid".to_string(),
                     target_cycle_time: 1.2,
-                    response_channel: tx,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
-                timeline_channel.send(request).await.unwrap();
+                timeline_channel.send(request, tx).await;
                 let slots = rx.await.unwrap();
                 assert_eq!(
                     slots.into_inner(),
@@ -706,10 +689,9 @@ mod tests {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
                     target_cycle_time: 21.3,
-                    response_channel: tx,
                 };
                 let (performance_channel, task) = client.handle_performance();
-                performance_channel.send(request).await.unwrap();
+                performance_channel.send(request, tx).await;
                 assert!(rx.await.is_err());
                 mock.assert_async().await;
                 assert!(!task.is_finished());
@@ -739,10 +721,9 @@ mod tests {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
                     target_cycle_time: 21.3,
-                    response_channel: tx,
                 };
                 let (performance_channel, task) = client.handle_performance();
-                performance_channel.send(request).await.unwrap();
+                performance_channel.send(request, tx).await;
                 let performance_ratio = rx.await.unwrap();
                 assert!(performance_ratio.is_nan());
                 mock.assert_async().await;
@@ -781,10 +762,9 @@ mod tests {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
                     target_cycle_time: 21.3,
-                    response_channel: tx,
                 };
                 let (performance_channel, task) = client.handle_performance();
-                performance_channel.send(request).await.unwrap();
+                performance_channel.send(request, tx).await;
                 let performance_ratio = rx.await.unwrap();
                 assert!(60.2 < performance_ratio && performance_ratio < 60.3);
                 mock.assert_async().await;
