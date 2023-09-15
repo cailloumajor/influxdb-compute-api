@@ -90,6 +90,8 @@ docker compose exec influxdb \
     --file /usr/src/timeline_data.txt
 
 # Feed InfluxDB with performance data
+awk '{ $NF=systime()+$NF; print }' performance_data.txt | \
+    docker compose exec -T influxdb sh -c "cat - > /usr/src/performance_data.txt"
 docker compose exec influxdb \
     influx write \
     --bucket integration_tests_bucket \

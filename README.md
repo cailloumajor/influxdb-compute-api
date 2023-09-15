@@ -41,12 +41,10 @@ Returns the performance ratio.
 
 #### Parameters
 
-| Name                         | Description                                 |
-| ---------------------------- | ------------------------------------------- |
-| `id` _(path)_                | Partner ID                                  |
-| `clientTime` _(query param)_ | Client request timestamp ([RFC3339] format) |
-
-[RFC3339]: https://datatracker.ietf.org/doc/html/rfc3339
+| Name                         | Description     |
+| ---------------------------- | --------------- |
+| `id` _(path)_                | Partner ID      |
+| `Client-Timezone` _(header)_ | Client timezone |
 
 #### Response
 

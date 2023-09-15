@@ -1,16 +1,15 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State, TypedHeader};
 use axum::http::HeaderValue;
 use axum::response::{IntoResponse, Response};
 use axum::{routing, Json, Router};
 use bytes::{BufMut, BytesMut};
-use chrono::{DateTime, FixedOffset};
 use reqwest::{header, StatusCode};
-use serde::Deserialize;
 use tracing::{error, instrument};
 
 use crate::config_api::{
     CommonConfig, CommonConfigChannel, PartnerConfig, PartnerConfigChannel, PartnerConfigRequest,
 };
+use crate::headers::ClientTimezone;
 use crate::influxdb::{
     HealthChannel, PerformanceChannel, PerformanceRequest, TimelineChannel, TimelineRequest,
     TimelineResponse,
@@ -36,12 +35,6 @@ impl IntoResponse for TimelineResponse {
             Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
         }
     }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PerformanceQueryParams {
-    client_time: DateTime<FixedOffset>,
 }
 
 #[derive(Clone)]
@@ -103,7 +96,7 @@ async fn timeline_handler(
 async fn performance_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
-    Query(query): Query<PerformanceQueryParams>,
+    TypedHeader(client_timezone): TypedHeader<ClientTimezone>,
 ) -> Result<Json<f32>, HandlerError> {
     let CommonConfig {
         shift_start_times,
@@ -130,9 +123,9 @@ async fn performance_handler(
         })?;
     let performance_request = PerformanceRequest {
         id,
-        now: query.client_time,
         shift_start_times,
         pauses,
+        timezone: client_timezone.into_inner(),
         target_cycle_time,
     };
     state
@@ -343,7 +336,8 @@ mod tests {
                 performance_channel,
             });
             let req = Request::builder()
-                .uri("/performance/anid?clientTime=1984-12-09T11:30:00%2B05:00")
+                .uri("/performance/anid")
+                .header("client-timezone", "Europe/Paris")
                 .body(Body::empty())
                 .unwrap();
             (app, req)

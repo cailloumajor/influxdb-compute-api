@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use arcstr::ArcStr;
 use chrono::serde::ts_seconds;
-use chrono::{DateTime, Duration, FixedOffset, NaiveTime, Utc};
+use chrono::{DateTime, Duration, NaiveTime, Utc};
+use chrono_tz::Tz;
 use clap::Args;
 use csv_async::AsyncReaderBuilder;
 use futures_util::TryStreamExt;
@@ -16,6 +17,14 @@ use url::Url;
 
 use crate::channel::{roundtrip_channel, RoundtripSender};
 use crate::time::{determine_shift_start, excluded_duration};
+
+fn utc_now() -> DateTime<Utc> {
+    if cfg!(test) {
+        "1984-12-09T04:30:00+02:00".parse().unwrap()
+    } else {
+        Utc::now()
+    }
+}
 
 #[derive(Args)]
 #[group(skip)]
@@ -74,9 +83,9 @@ pub(crate) type TimelineChannel = RoundtripSender<TimelineRequest, TimelineRespo
 
 pub(crate) struct PerformanceRequest {
     pub(crate) id: String,
-    pub(crate) now: DateTime<FixedOffset>,
     pub(crate) shift_start_times: Vec<NaiveTime>,
     pub(crate) pauses: Vec<(NaiveTime, NaiveTime)>,
+    pub(crate) timezone: Tz,
     pub(crate) target_cycle_time: f32,
 }
 
@@ -270,7 +279,8 @@ impl Client {
                 info!(status = "started");
 
                 while let Some((request, reply_tx)) = rx.recv().await {
-                    let start_time = determine_shift_start(request.now, &request.shift_start_times);
+                    let now_fixed = utc_now().with_timezone(&request.timezone).fixed_offset();
+                    let start_time = determine_shift_start(now_fixed, &request.shift_start_times);
                     let flux_query = FLUX_QUERY
                         .replace("__idplaceholder__", &request.id)
                         .replace("__startplaceholder__", &start_time.to_rfc3339());
@@ -282,8 +292,7 @@ impl Client {
                             .into_iter()
                             .filter(|row| row.elapsed.is_positive() && !row.part_ref.is_empty())
                             .fold((0.0, 0), |(expected, done), row| {
-                                let end =
-                                    row.end.with_timezone(&request.now.timezone()).naive_local();
+                                let end = row.end.with_timezone(&request.timezone).naive_local();
                                 let duration = Duration::minutes(row.elapsed);
                                 let start = end - duration;
                                 let pause_duration = excluded_duration(start..end, &request.pauses);
@@ -629,6 +638,7 @@ mod tests {
         }
 
         mod handle_performance {
+            use chrono_tz::Etc::GMTMinus2;
             use indoc::indoc;
 
             use super::*;
@@ -673,9 +683,9 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
-                    now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
                     shift_start_times: shift_start_times(),
                     pauses: pauses(),
+                    timezone: GMTMinus2,
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();
@@ -705,9 +715,9 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
-                    now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
                     shift_start_times: shift_start_times(),
                     pauses: pauses(),
+                    timezone: GMTMinus2,
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();
@@ -746,9 +756,9 @@ mod tests {
                 let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
-                    now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
                     shift_start_times: shift_start_times(),
                     pauses: pauses(),
+                    timezone: GMTMinus2,
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();

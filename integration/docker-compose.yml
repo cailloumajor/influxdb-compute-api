@@ -4,10 +4,12 @@ services:
 
   config-api:
     build: ./config-api
+    environment:
+      - TZ=UTC
     ports:
       - 3000:3000
     volumes:
-      - ./config-api/config.json:/usr/src/config.json:ro
+      - ./config-api/config.js:/usr/src/config.js:ro
 
   influxdb:
     image: influxdb:2.7
@@ -18,8 +20,6 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=integration_tests_org
       - DOCKER_INFLUXDB_INIT_BUCKET=integration_tests_bucket
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=integration_tests_token
-    volumes:
-      - ./performance_data.txt:/usr/src/performance_data.txt
 
   influxdb-compute-api:
     build: ..
