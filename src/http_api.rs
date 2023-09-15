@@ -8,11 +8,13 @@ use reqwest::{header, StatusCode};
 use serde::Deserialize;
 use tracing::{error, instrument};
 
-use crate::config_api::{ConfigChannel, ConfigRequest};
+use crate::config_api::{
+    CommonConfig, CommonConfigChannel, PartnerConfig, PartnerConfigChannel, PartnerConfigRequest,
+};
 use crate::influxdb::{
     HealthChannel, PerformanceChannel, PerformanceRequest, TimelineChannel, TimelineRequest,
+    TimelineResponse,
 };
-use crate::model::{ConfigFromApi, TimelineResponse};
 
 type HandlerError = (StatusCode, &'static str);
 
@@ -45,7 +47,8 @@ struct PerformanceQueryParams {
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub(crate) health_channel: HealthChannel,
-    pub(crate) config_channel: ConfigChannel,
+    pub(crate) common_config_channel: CommonConfigChannel,
+    pub(crate) partner_config_channel: PartnerConfigChannel,
     pub(crate) timeline_channel: TimelineChannel,
     pub(crate) performance_channel: PerformanceChannel,
 }
@@ -71,15 +74,15 @@ async fn timeline_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<TimelineResponse, HandlerError> {
-    let config_request = ConfigRequest { id: id.clone() };
-    let ConfigFromApi {
+    let config_request = PartnerConfigRequest { id: id.clone() };
+    let PartnerConfig {
         target_cycle_time, ..
     } = state
-        .config_channel
+        .partner_config_channel
         .roundtrip(config_request)
         .await
         .map_err(|err| {
-            error!(kind = "config channel roundtrip", %err);
+            error!(kind = "partner config channel roundtrip", %err);
             INTERNAL_ERROR
         })?;
     let timeline_request = TimelineRequest {
@@ -102,20 +105,34 @@ async fn performance_handler(
     Path(id): Path<String>,
     Query(query): Query<PerformanceQueryParams>,
 ) -> Result<Json<f32>, HandlerError> {
-    let config_request = ConfigRequest { id: id.clone() };
-    let ConfigFromApi {
+    let CommonConfig {
+        shift_start_times,
+        pauses,
+    } = state
+        .common_config_channel
+        .roundtrip(())
+        .await
+        .map_err(|err| {
+            error!(kind = "common config channel roundtrip", %err);
+            INTERNAL_ERROR
+        })?;
+
+    let config_request = PartnerConfigRequest { id: id.clone() };
+    let PartnerConfig {
         target_cycle_time, ..
     } = state
-        .config_channel
+        .partner_config_channel
         .roundtrip(config_request)
         .await
         .map_err(|err| {
-            error!(kind = "config channel roundtrip", %err);
+            error!(kind = "partner config channel roundtrip", %err);
             INTERNAL_ERROR
         })?;
     let performance_request = PerformanceRequest {
         id,
         now: query.client_time,
+        shift_start_times,
+        pauses,
         target_cycle_time,
     };
     state
@@ -139,11 +156,24 @@ mod tests {
 
     use super::*;
 
-    fn successful_config_tx() -> RoundtripSender<ConfigRequest, ConfigFromApi> {
+    fn successful_common_config_tx() -> RoundtripSender<(), CommonConfig> {
         let (tx, mut rx) = roundtrip_channel(1);
         tokio::spawn(async move {
             let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
-            let config = ConfigFromApi {
+            let config = CommonConfig {
+                shift_start_times: vec!["02:03:04".parse().unwrap()],
+                pauses: vec![("05:06:07".parse().unwrap(), "08:09:10".parse().unwrap())],
+            };
+            reply_tx.send(config).expect("error sending response");
+        });
+        tx
+    }
+
+    fn successful_partner_config_tx() -> RoundtripSender<PartnerConfigRequest, PartnerConfig> {
+        let (tx, mut rx) = roundtrip_channel(1);
+        tokio::spawn(async move {
+            let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+            let config = PartnerConfig {
                 target_cycle_time: 1.2,
                 target_efficiency: 3.4,
             };
@@ -158,12 +188,14 @@ mod tests {
         use super::*;
 
         fn testing_fixture(health_channel: HealthChannel) -> (Router, Request<Body>) {
-            let (config_channel, _) = roundtrip_channel(1);
+            let (common_config_channel, _) = roundtrip_channel(1);
+            let (partner_config_channel, _) = roundtrip_channel(1);
             let (timeline_channel, _) = roundtrip_channel(1);
             let (performance_channel, _) = roundtrip_channel(1);
             let app = app(AppState {
                 health_channel,
-                config_channel,
+                common_config_channel,
+                partner_config_channel,
                 timeline_channel,
                 performance_channel,
             });
@@ -215,19 +247,21 @@ mod tests {
         use std::vec;
 
         use crate::channel::{roundtrip_channel, RoundtripSender};
-        use crate::model::TimelineSlot;
+        use crate::influxdb::TimelineSlot;
 
         use super::*;
 
         fn testing_fixture(
-            config_channel: ConfigChannel,
+            partner_config_channel: PartnerConfigChannel,
             timeline_channel: TimelineChannel,
         ) -> (Router, Request<Body>) {
+            let (common_config_channel, _) = roundtrip_channel(1);
             let (health_channel, _) = roundtrip_channel(1);
             let (performance_channel, _) = roundtrip_channel(1);
             let app = app(AppState {
                 health_channel,
-                config_channel,
+                common_config_channel,
+                partner_config_channel,
                 timeline_channel,
                 performance_channel,
             });
@@ -258,28 +292,28 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn config_roundtrip_error() {
-            let (config_tx, _) = roundtrip_channel(1);
+        async fn partner_config_roundtrip_error() {
+            let (partner_config_tx, _) = roundtrip_channel(1);
             let timeline_tx = successful_timeline_tx();
-            let (app, req) = testing_fixture(config_tx, timeline_tx);
+            let (app, req) = testing_fixture(partner_config_tx, timeline_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
         }
 
         #[tokio::test]
         async fn timeline_roundtrip_error() {
-            let config_tx = successful_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
             let (timeline_tx, _) = roundtrip_channel(1);
-            let (app, req) = testing_fixture(config_tx, timeline_tx);
+            let (app, req) = testing_fixture(partner_config_tx, timeline_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
         }
 
         #[tokio::test]
         async fn success() {
-            let config_tx = successful_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
             let timeline_tx = successful_timeline_tx();
-            let (app, req) = testing_fixture(config_tx, timeline_tx);
+            let (app, req) = testing_fixture(partner_config_tx, timeline_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::OK);
             assert_eq!(res.headers()["Content-Type"], "application/msgpack");
@@ -295,14 +329,16 @@ mod tests {
         use super::*;
 
         fn testing_fixture(
-            config_channel: ConfigChannel,
+            common_config_channel: CommonConfigChannel,
+            partner_config_channel: PartnerConfigChannel,
             performance_channel: PerformanceChannel,
         ) -> (Router, Request<Body>) {
             let (health_channel, _) = roundtrip_channel(1);
             let (timeline_channel, _) = roundtrip_channel(1);
             let app = app(AppState {
                 health_channel,
-                config_channel,
+                common_config_channel,
+                partner_config_channel,
                 timeline_channel,
                 performance_channel,
             });
@@ -323,28 +359,41 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn config_roundtrip_error() {
-            let (config_tx, _) = roundtrip_channel(1);
+        async fn common_config_roundtrip_error() {
+            let (common_config_tx, _) = roundtrip_channel(1);
+            let partner_config_tx = successful_partner_config_tx();
             let performance_tx = successful_performance_tx();
-            let (app, req) = testing_fixture(config_tx, performance_tx);
+            let (app, req) = testing_fixture(common_config_tx, partner_config_tx, performance_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        #[tokio::test]
+        async fn partner_config_roundtrip_error() {
+            let common_config_tx = successful_common_config_tx();
+            let (partner_config_tx, _) = roundtrip_channel(1);
+            let performance_tx = successful_performance_tx();
+            let (app, req) = testing_fixture(common_config_tx, partner_config_tx, performance_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
         }
 
         #[tokio::test]
         async fn performance_roundtrip_error() {
-            let config_tx = successful_config_tx();
+            let common_config_tx = successful_common_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
             let (performance_tx, _) = roundtrip_channel(1);
-            let (app, req) = testing_fixture(config_tx, performance_tx);
+            let (app, req) = testing_fixture(common_config_tx, partner_config_tx, performance_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
         }
 
         #[tokio::test]
         async fn success() {
-            let config_tx = successful_config_tx();
+            let common_config_tx = successful_common_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
             let performance_tx = successful_performance_tx();
-            let (app, req) = testing_fixture(config_tx, performance_tx);
+            let (app, req) = testing_fixture(common_config_tx, partner_config_tx, performance_tx);
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::OK);
             assert_eq!(res.headers()["Content-Type"], "application/json");
