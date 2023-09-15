@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.3.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.2.0...v2.3.0) (2023-09-15)
+
+
+### Features
+
+* get common configuration from config API ([49dd4f4](https://github.com/cailloumajor/influxdb-compute-api/commit/49dd4f44c4344d554c93e7e1eace14d334f71fbf))
+* switch to client timezone header ([22c3603](https://github.com/cailloumajor/influxdb-compute-api/commit/22c360302310f30a57a72bf34552e83c69a9c625))
+
+
+### Bug Fixes
+
+* **deps:** update rust crate bytes to 1.5.0 ([6b9b2d9](https://github.com/cailloumajor/influxdb-compute-api/commit/6b9b2d90e6af384c65b290c2dffcc00231f4c4a7))
+* **deps:** update rust crate chrono to 0.4.30 ([bc19955](https://github.com/cailloumajor/influxdb-compute-api/commit/bc19955696d8d975039b2025d48994451e3760f7))
+* **deps:** update rust crate clap to 4.4.3 ([d79c36c](https://github.com/cailloumajor/influxdb-compute-api/commit/d79c36cbd7b001f39aaa4092230f9cc1a02205ea))
+* factorize roundtrip channel ([a7e1435](https://github.com/cailloumajor/influxdb-compute-api/commit/a7e14354488cc4a02938188ef6245f2eda56b7e6))
+* use buffered channels ([22b891f](https://github.com/cailloumajor/influxdb-compute-api/commit/22b891f16e321469f45d651a415d6259370a62be))
+
 ## [2.2.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.1.0...v2.2.0) (2023-09-06)
 
 
