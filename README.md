@@ -86,13 +86,15 @@ Timeline data consists of an array of arrays. Inner arrays contain following com
 
 ```ShellSession
 $ influxdb-compute-api --help
-Usage: influxdb-compute-api [OPTIONS] --config-api-url <CONFIG_API_URL> --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT> --shift-start-times <SHIFT_START_TIMES>
+Usage: influxdb-compute-api [OPTIONS] --config-api-url <CONFIG_API_URL> --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT>
 
 Options:
       --listen-address <LISTEN_ADDRESS>
           Address to listen on [env: LISTEN_ADDRESS=] [default: 0.0.0.0:8080]
       --config-api-url <CONFIG_API_URL>
           Configuration API URL [env: CONFIG_API_URL=]
+      --common-config-cache-expiration <COMMON_CONFIG_CACHE_EXPIRATION>
+          Expiration time for common configuration cache [env: COMMON_CONFIG_CACHE_EXPIRATION=] [default: 1m]
       --influxdb-url <INFLUXDB_URL>
           InfluxDB base URL [env: INFLUXDB_URL=] [default: http://influxdb:8086]
       --influxdb-api-token <INFLUXDB_API_TOKEN>
@@ -103,10 +105,6 @@ Options:
           InfluxDB bucket [env: INFLUXDB_BUCKET=]
       --influxdb-measurement <INFLUXDB_MEASUREMENT>
           InfluxDB measurement [env: INFLUXDB_MEASUREMENT=]
-      --shift-start-times <SHIFT_START_TIMES>
-          Comma-separated shift start times in `%H:%M:%S` format [env: SHIFT_START_TIMES=]
-      --pauses <PAUSES>
-          Comma-separated pause time definitions (`%H:%M:%S/{minutes}`) [env: PAUSES=]
   -v, --verbose...
           More output per occurrence
   -q, --quiet...

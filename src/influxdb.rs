@@ -2,20 +2,20 @@ use std::io;
 use std::sync::Arc;
 
 use arcstr::ArcStr;
+use chrono::serde::ts_seconds;
 use chrono::{DateTime, Duration, FixedOffset, NaiveTime, Utc};
 use clap::Args;
 use csv_async::AsyncReaderBuilder;
 use futures_util::TryStreamExt;
 use reqwest::{header, Client as HttpClient, StatusCode};
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::task::{spawn_blocking, JoinHandle};
 use tracing::{error, info, info_span, instrument, Instrument};
 use url::Url;
 
 use crate::channel::{roundtrip_channel, RoundtripSender};
-use crate::model::{TimelineResponse, TimelineSlot};
-use crate::time::{determine_shift_start, excluded_duration, time_span_parser};
+use crate::time::{determine_shift_start, excluded_duration};
 
 #[derive(Args)]
 #[group(skip)]
@@ -39,14 +39,6 @@ pub(crate) struct Config {
     /// InfluxDB measurement
     #[arg(env, long)]
     influxdb_measurement: String,
-
-    /// Comma-separated shift start times in `%H:%M:%S` format.
-    #[arg(env, long, value_delimiter = ',', required = true)]
-    shift_start_times: Vec<NaiveTime>,
-
-    /// Comma-separated pause time definitions (`%H:%M:%S/{minutes}`).
-    #[arg(env, long, value_delimiter = ',', value_parser = time_span_parser)]
-    pauses: Vec<(NaiveTime, NaiveTime)>,
 }
 
 pub(crate) type HealthChannel = RoundtripSender<(), StatusCode>;
@@ -56,11 +48,35 @@ pub(crate) struct TimelineRequest {
     pub(crate) target_cycle_time: f32,
 }
 
+#[derive(Debug, PartialEq, Serialize)]
+pub(crate) struct TimelineSlot {
+    #[serde(with = "ts_seconds")]
+    pub(crate) start: DateTime<Utc>,
+    pub(crate) color: Option<u8>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TimelineResponse(Vec<TimelineSlot>);
+
+impl From<Vec<TimelineSlot>> for TimelineResponse {
+    fn from(value: Vec<TimelineSlot>) -> Self {
+        Self(value)
+    }
+}
+
+impl TimelineResponse {
+    pub(crate) fn into_inner(self) -> Vec<TimelineSlot> {
+        self.0
+    }
+}
+
 pub(crate) type TimelineChannel = RoundtripSender<TimelineRequest, TimelineResponse>;
 
 pub(crate) struct PerformanceRequest {
     pub(crate) id: String,
     pub(crate) now: DateTime<FixedOffset>,
+    pub(crate) shift_start_times: Vec<NaiveTime>,
+    pub(crate) pauses: Vec<(NaiveTime, NaiveTime)>,
     pub(crate) target_cycle_time: f32,
 }
 
@@ -98,8 +114,6 @@ pub(crate) struct Client {
     org: ArcStr,
     bucket: ArcStr,
     measurement: ArcStr,
-    shift_start_times: Arc<Vec<NaiveTime>>,
-    pauses: Arc<Vec<(NaiveTime, NaiveTime)>>,
     http_client: HttpClient,
 }
 
@@ -110,8 +124,6 @@ impl Client {
         let org = ArcStr::from(&config.influxdb_org);
         let bucket = ArcStr::from(&config.influxdb_bucket);
         let measurement = ArcStr::from(&config.influxdb_measurement);
-        let shift_start_times = Arc::new(config.shift_start_times.clone());
-        let pauses = Arc::new(config.pauses.clone());
 
         Self {
             base_url,
@@ -119,8 +131,6 @@ impl Client {
             org,
             bucket,
             measurement,
-            shift_start_times,
-            pauses,
             http_client,
         }
     }
@@ -260,15 +270,13 @@ impl Client {
                 info!(status = "started");
 
                 while let Some((request, reply_tx)) = rx.recv().await {
-                    let start_time =
-                        determine_shift_start(request.now, &cloned_self.shift_start_times);
+                    let start_time = determine_shift_start(request.now, &request.shift_start_times);
                     let flux_query = FLUX_QUERY
                         .replace("__idplaceholder__", &request.id)
                         .replace("__startplaceholder__", &start_time.to_rfc3339());
                     let Ok(rows) = cloned_self.query::<PerformanceRow>(&flux_query).await else {
                         continue;
                     };
-                    let pauses = Arc::clone(&cloned_self.pauses);
                     let performance = spawn_blocking(move || {
                         let (expected_parts, done_parts) = rows
                             .into_iter()
@@ -278,7 +286,7 @@ impl Client {
                                     row.end.with_timezone(&request.now.timezone()).naive_local();
                                 let duration = Duration::minutes(row.elapsed);
                                 let start = end - duration;
-                                let pause_duration = excluded_duration(start..end, &pauses);
+                                let pause_duration = excluded_duration(start..end, &request.pauses);
                                 let effective_duration = duration - pause_duration;
                                 let effective_seconds = effective_duration.num_seconds() as f32;
                                 let expected_parts = effective_seconds / request.target_cycle_time;
@@ -337,8 +345,6 @@ mod tests {
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
                     influxdb_measurement: "somemeasurement".to_string(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -359,8 +365,6 @@ mod tests {
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
                     influxdb_measurement: "somemeasurement".to_string(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -383,8 +387,6 @@ mod tests {
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
                     influxdb_measurement: "somemeasurement".to_string(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -407,8 +409,6 @@ mod tests {
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
                     influxdb_measurement: "somemeasurement".to_string(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -429,8 +429,6 @@ mod tests {
                     influxdb_org: "someorg".to_string(),
                     influxdb_bucket: "somebucket".to_string(),
                     influxdb_measurement: "somemeasurement".to_string(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -455,8 +453,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -483,8 +479,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -526,8 +520,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -557,8 +549,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -601,8 +591,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: Default::default(),
-                    pauses: Default::default(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -679,8 +667,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: shift_start_times(),
-                    pauses: pauses(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -688,6 +674,8 @@ mod tests {
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
+                    shift_start_times: shift_start_times(),
+                    pauses: pauses(),
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();
@@ -711,8 +699,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: shift_start_times(),
-                    pauses: pauses(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -720,6 +706,8 @@ mod tests {
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
+                    shift_start_times: shift_start_times(),
+                    pauses: pauses(),
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();
@@ -752,8 +740,6 @@ mod tests {
                     influxdb_org: Default::default(),
                     influxdb_bucket: Default::default(),
                     influxdb_measurement: Default::default(),
-                    shift_start_times: shift_start_times(),
-                    pauses: pauses(),
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
@@ -761,6 +747,8 @@ mod tests {
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     now: "1984-12-09T04:30:00+02:00".parse().unwrap(),
+                    shift_start_times: shift_start_times(),
+                    pauses: pauses(),
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();

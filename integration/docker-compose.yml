@@ -32,8 +32,6 @@ services:
       - INFLUXDB_ORG=integration_tests_org
       - INFLUXDB_BUCKET=integration_tests_bucket
       - INFLUXDB_MEASUREMENT=integration_tests
-      - SHIFT_START_TIMES=05:00:00,13:00:00
-      - PAUSES=08:00:00/20,11:00:00/30
 
   api-test:
     image: ghcr.io/orange-opensource/hurl:4.0.0

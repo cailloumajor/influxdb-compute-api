@@ -12,6 +12,7 @@ bytes = "1.5.0"
 clap-verbosity-flag = "2.0.1"
 csv-async = "1.2.6"
 futures-util = { version = "0.3.28", features = [ "io" ] }
+humantime = "2.1.0"
 mime = "0.3.17"
 rmp-serde = "1.1.2"
 serde = { version = "1.0.188", features = [ "derive" ] }

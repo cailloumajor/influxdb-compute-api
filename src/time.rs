@@ -3,22 +3,6 @@ use std::ops::Range;
 
 use chrono::{DateTime, Days, Duration, FixedOffset, NaiveDateTime, NaiveTime};
 
-/// Parses a time span string (`%H:%M:%S/{minutes}`).
-pub(crate) fn time_span_parser(s: &str) -> Result<(NaiveTime, NaiveTime), String> {
-    match s.split_once('/') {
-        Some((start_str, minutes_str)) => {
-            let start = start_str
-                .parse::<NaiveTime>()
-                .map_err(|err| format!("parsing time `{start_str}`: {err}"))?;
-            let minutes = minutes_str
-                .parse::<u16>()
-                .map_err(|err| format!("parsing duration `{minutes_str}`: {err}"))?;
-            Ok((start, start + Duration::minutes(minutes.into())))
-        }
-        None => Err(format!("parsing time span `{s}`: invalid format")),
-    }
-}
-
 /// Determines the shift start of given timestamp (`current` argument),
 /// given a slice of shift start times.
 ///
@@ -107,43 +91,6 @@ pub(crate) fn excluded_duration(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    mod time_spans_parser {
-        use super::*;
-
-        #[test]
-        fn format_error() {
-            let input = "01:30:00_15";
-            let result = time_span_parser(input);
-            assert_eq!(
-                result.err().unwrap(),
-                "parsing time span `01:30:00_15`: invalid format"
-            );
-        }
-
-        #[test]
-        fn time_parse_error() {
-            let input = "a/15";
-            let result = time_span_parser(input);
-            assert!(result.err().unwrap().starts_with("parsing time `a`: "));
-        }
-
-        #[test]
-        fn duration_parse_error() {
-            let input = "01:30:00/b";
-            let result = time_span_parser(input);
-            assert!(result.err().unwrap().starts_with("parsing duration `b`: "));
-        }
-
-        #[test]
-        fn success() {
-            let input = "01:30:00/15";
-            let expected: (NaiveTime, NaiveTime) =
-                ("01:30:00".parse().unwrap(), "01:45:00".parse().unwrap());
-            let spans = time_span_parser(input).unwrap();
-            assert_eq!(spans, expected);
-        }
-    }
 
     mod determine_shift_start {
         use super::*;

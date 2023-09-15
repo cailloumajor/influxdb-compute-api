@@ -15,7 +15,6 @@ mod config_api;
 mod http_api;
 mod influxdb;
 mod level_filter;
-mod model;
 mod time;
 
 use level_filter::VerbosityLevelFilter;
@@ -57,7 +56,8 @@ async fn main() -> anyhow::Result<()> {
     let http_client = reqwest::Client::new();
 
     let config_api_client = config_api::Client::new(&args.config_api, http_client.clone());
-    let (config_channel, config_task) = config_api_client.handle_config();
+    let (common_config_channel, common_config_task) = config_api_client.handle_common_config();
+    let (partner_config_channel, partner_config_task) = config_api_client.handle_partner_config();
 
     let influxdb_client = influxdb::Client::new(&args.influxdb, http_client);
     let (health_channel, health_task) = influxdb_client.handle_health();
@@ -69,7 +69,8 @@ async fn main() -> anyhow::Result<()> {
 
     let app = http_api::app(http_api::AppState {
         health_channel,
-        config_channel,
+        common_config_channel,
+        partner_config_channel,
         timeline_channel,
         performance_channel,
     });
@@ -89,8 +90,14 @@ async fn main() -> anyhow::Result<()> {
 
     signals_handle.close();
 
-    tokio::try_join!(config_task, health_task, timeline_task, performance_task)
-        .context("error joining tasks")?;
+    tokio::try_join!(
+        common_config_task,
+        partner_config_task,
+        health_task,
+        timeline_task,
+        performance_task
+    )
+    .context("error joining tasks")?;
 
     Ok(())
 }
