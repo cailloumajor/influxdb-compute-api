@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.1](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.3.0...v2.3.1) (2023-09-18)
+
+
+### Bug Fixes
+
+* allow empty part reference in performance data ([5a3e9a8](https://github.com/cailloumajor/influxdb-compute-api/commit/5a3e9a82342b12377fbb22e82101a6c344b49810))
+* **deps:** update rust crate chrono to 0.4.31 ([b2edda0](https://github.com/cailloumajor/influxdb-compute-api/commit/b2edda05e86e3a24cf703713bdd6802978639aa0))
+
 ## [2.3.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.2.0...v2.3.0) (2023-09-15)
 
 
