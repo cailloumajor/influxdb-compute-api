@@ -113,7 +113,7 @@ struct PerformanceRow {
     /// Good parts counter.
     good_parts: u16,
     /// Part reference.
-    part_ref: String,
+    _part_ref: String,
 }
 
 #[derive(Clone)]
@@ -290,7 +290,7 @@ impl Client {
                     let performance = spawn_blocking(move || {
                         let (expected_parts, done_parts) = rows
                             .into_iter()
-                            .filter(|row| row.elapsed.is_positive() && !row.part_ref.is_empty())
+                            .filter(|row| row.elapsed.is_positive())
                             .fold((0.0, 0), |(expected, done), row| {
                                 let end = row.end.with_timezone(&request.timezone).naive_local();
                                 let duration = Duration::minutes(row.elapsed);
@@ -733,7 +733,7 @@ mod tests {
                 const BODY: &str = indoc! {"
                     elapsed,end,goodParts,partRef
                     -1,1984-12-09T00:00:00+02:00,500,invalid
-                    60,1984-12-09T00:00:00+02:00,500,
+                    60,1984-12-09T01:00:00+02:00,100,
                     30,1984-12-09T08:00:00+02:00,60,ref1
                     120,1984-12-09T10:00:00+02:00,200,ref2
                     240,1984-12-09T15:30:00+02:00,300,ref3
@@ -764,7 +764,7 @@ mod tests {
                 let (performance_channel, task) = client.handle_performance();
                 performance_channel.send(request, tx).await;
                 let performance_ratio = rx.await.unwrap();
-                assert!(60.2 < performance_ratio && performance_ratio < 60.3);
+                assert!(60.0 < performance_ratio && performance_ratio < 60.1);
                 mock.assert_async().await;
                 assert!(!task.is_finished());
             }
