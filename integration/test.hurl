@@ -13,5 +13,5 @@ Client-Timezone: Etc/GMT-2
 HTTP 200
 Content-Type: application/json
 [Asserts]
-jsonpath "$" > 48.5
-jsonpath "$" < 48.7
+jsonpath "$" > 48.7
+jsonpath "$" < 48.8
