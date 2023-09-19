@@ -40,6 +40,8 @@ pub(crate) struct CommonConfig {
     pub(crate) pauses: Vec<(NaiveTime, NaiveTime)>,
 }
 
+pub(crate) type CommonConfigChannel = RoundtripSender<(), CommonConfig>;
+
 pub(crate) struct PartnerConfigRequest {
     pub(crate) id: String,
 }
@@ -58,7 +60,6 @@ pub(crate) struct Client {
     common_config_cache: Cache<CommonConfig>,
 }
 
-pub(crate) type CommonConfigChannel = RoundtripSender<(), CommonConfig>;
 pub(crate) type PartnerConfigChannel = RoundtripSender<PartnerConfigRequest, PartnerConfig>;
 
 impl Client {

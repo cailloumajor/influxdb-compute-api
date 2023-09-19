@@ -29,5 +29,9 @@ module.exports = () => {
             targetCycleTime: 21.3,
             targetEfficiency: 0,
         },
+        id3: {
+            targetCycleTime: 10.0,
+            targetEfficiency: 0.7,
+        },
     };
 };

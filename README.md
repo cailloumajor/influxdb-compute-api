@@ -33,6 +33,34 @@ None
 | 204  | Service is healthy   |
 | 500  | Service is unhealthy |
 
+### Shift objective graphics data
+
+#### `GET` `/shift-objective/{id}`
+
+Returns data to draw the production objective graphics for the current shift.
+
+#### Parameters
+
+| Name              | Source   | Description     |
+| ----------------- | -------- | --------------- |
+| `id`              | _path_   | Partner ID      |
+| `Client-Timezone` | _header_ | Client timezone |
+
+#### Response
+
+| Code | Description                                  |
+| ---- | -------------------------------------------- |
+| 200  | Graphics data (JSON format, see table below) |
+| 400  | Bad request                                  |
+| 500  | Internal error                               |
+
+##### Graphics data array elements
+
+| Key | Value type | Description                          |
+| --- | ---------- | ------------------------------------ |
+| `t` | _number_   | Data point UNIX timestamp in seconds |
+| `v` | _number_   | Production objective value           |
+
 ### Performance ratio
 
 #### `GET` `/performance/{id}`
@@ -41,10 +69,10 @@ Returns the performance ratio.
 
 #### Parameters
 
-| Name                         | Description     |
-| ---------------------------- | --------------- |
-| `id` _(path)_                | Partner ID      |
-| `Client-Timezone` _(header)_ | Client timezone |
+| Name              | Source   | Description     |
+| ----------------- | -------- | --------------- |
+| `id`              | _path_   | Partner ID      |
+| `Client-Timezone` | _header_ | Client timezone |
 
 #### Response
 
@@ -62,9 +90,9 @@ Returns the timeline data.
 
 #### Parameters
 
-| Name        | Description |
-| ----------- | ----------- |
-| id _(path)_ | Partner ID  |
+| Name | Source | Description |
+| ---- | ------ | ----------- |
+| id   | path   | Partner ID  |
 
 #### Response
 

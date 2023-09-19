@@ -16,15 +16,7 @@ use tracing::{error, info, info_span, instrument, Instrument};
 use url::Url;
 
 use crate::channel::{roundtrip_channel, RoundtripSender};
-use crate::time::{determine_shift_start, excluded_duration};
-
-fn utc_now() -> DateTime<Utc> {
-    if cfg!(test) {
-        "1984-12-09T04:30:00+02:00".parse().unwrap()
-    } else {
-        Utc::now()
-    }
-}
+use crate::time::{apply_time_spans, find_shift_start};
 
 #[derive(Args)]
 #[group(skip)]
@@ -275,8 +267,8 @@ impl Client {
                 info!(status = "started");
 
                 while let Some((request, reply_tx)) = rx.recv().await {
-                    let now_fixed = utc_now().with_timezone(&request.timezone).fixed_offset();
-                    let start_time = determine_shift_start(now_fixed, &request.shift_start_times);
+                    let (start_time, _) =
+                        find_shift_start(&request.timezone, &request.shift_start_times);
                     let flux_query = FLUX_QUERY
                         .replace("__idplaceholder__", &request.id)
                         .replace("__startplaceholder__", &start_time.to_rfc3339());
@@ -290,7 +282,11 @@ impl Client {
                             let end = row.end.with_timezone(&request.timezone).naive_local();
                             let duration = Duration::minutes(row.elapsed);
                             let start = end - duration;
-                            let pause_duration = excluded_duration(start..end, &request.pauses);
+                            let pause_duration = apply_time_spans(start..end, &request.pauses)
+                                .into_iter()
+                                .fold(Duration::zero(), |acc, (span_start, span_end)| {
+                                    acc + (span_end - span_start)
+                                });
                             let effective_duration = duration - pause_duration;
                             let effective_seconds = effective_duration.num_seconds() as f32;
                             let expected_parts = effective_seconds / request.target_cycle_time;
@@ -633,6 +629,8 @@ mod tests {
             use chrono_tz::Etc::GMTMinus2;
             use indoc::indoc;
 
+            use crate::time::override_now;
+
             use super::*;
 
             fn server_mock(server: &mut Server) -> Mock {
@@ -658,6 +656,7 @@ mod tests {
 
             #[tokio::test]
             async fn query_error() {
+                override_now(Some("1984-12-09T02:30:00Z".parse().unwrap()));
                 let mut server = Server::new_async().await;
                 let mock = server_mock(&mut server)
                     .with_status(500)
@@ -689,6 +688,7 @@ mod tests {
 
             #[tokio::test]
             async fn success_empty() {
+                override_now(Some("1984-12-09T02:30:00Z".parse().unwrap()));
                 let mut server = Server::new_async().await;
                 let mock = server_mock(&mut server)
                     .with_status(200)
@@ -722,6 +722,7 @@ mod tests {
 
             #[tokio::test]
             async fn success() {
+                override_now(Some("1984-12-09T02:30:00Z".parse().unwrap()));
                 const BODY: &str = indoc! {"
                     elapsed,end,goodParts,partRef
                     -1,1984-12-09T00:00:00+02:00,500,invalid
