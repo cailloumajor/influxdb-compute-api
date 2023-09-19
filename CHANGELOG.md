@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.2](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.3.1...v2.3.2) (2023-09-19)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate clap to 4.4.4 ([963e69c](https://github.com/cailloumajor/influxdb-compute-api/commit/963e69cf097237d06a6e2072588b859f78fae8a3))
+* remove use of `spawn_blocking` ([f281bfb](https://github.com/cailloumajor/influxdb-compute-api/commit/f281bfb57fb29517aa0b2e28228d45376a125362))
+
 ## [2.3.1](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.3.0...v2.3.1) (2023-09-18)
 
 
