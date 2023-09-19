@@ -11,7 +11,7 @@ use futures_util::TryStreamExt;
 use reqwest::{header, Client as HttpClient, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use tokio::task::{spawn_blocking, JoinHandle};
+use tokio::task::JoinHandle;
 use tracing::{error, info, info_span, instrument, Instrument};
 use url::Url;
 
@@ -244,18 +244,14 @@ impl Client {
                     let Ok(mut rows) = cloned_self.query::<TimelineRow>(&flux_query).await else {
                         continue;
                     };
-                    let slots: Vec<TimelineSlot> = spawn_blocking(|| {
-                        let Some(last_row) = rows.pop() else {
-                            return Vec::new();
-                        };
+                    if let Some(last_row) = rows.pop() {
                         rows.dedup_by_key(|row| row.color);
                         rows.push(last_row);
-                        rows.into_iter()
-                            .map(|TimelineRow { time: start, color }| TimelineSlot { start, color })
-                            .collect()
-                    })
-                    .await
-                    .unwrap();
+                    };
+                    let slots = rows
+                        .into_iter()
+                        .map(|TimelineRow { time: start, color }| TimelineSlot { start, color })
+                        .collect::<Vec<_>>();
                     if reply_tx.send(slots.into()).is_err() {
                         error!(kind = "response channel sending");
                     }
@@ -287,24 +283,20 @@ impl Client {
                     let Ok(rows) = cloned_self.query::<PerformanceRow>(&flux_query).await else {
                         continue;
                     };
-                    let performance = spawn_blocking(move || {
-                        let (expected_parts, done_parts) = rows
-                            .into_iter()
-                            .filter(|row| row.elapsed.is_positive())
-                            .fold((0.0, 0), |(expected, done), row| {
-                                let end = row.end.with_timezone(&request.timezone).naive_local();
-                                let duration = Duration::minutes(row.elapsed);
-                                let start = end - duration;
-                                let pause_duration = excluded_duration(start..end, &request.pauses);
-                                let effective_duration = duration - pause_duration;
-                                let effective_seconds = effective_duration.num_seconds() as f32;
-                                let expected_parts = effective_seconds / request.target_cycle_time;
-                                (expected + expected_parts, done + row.good_parts)
-                            });
-                        f32::from(done_parts) / expected_parts * 100.0
-                    })
-                    .await
-                    .unwrap();
+                    let (expected_parts, done_parts) = rows
+                        .into_iter()
+                        .filter(|row| row.elapsed.is_positive())
+                        .fold((0.0, 0), |(expected, done), row| {
+                            let end = row.end.with_timezone(&request.timezone).naive_local();
+                            let duration = Duration::minutes(row.elapsed);
+                            let start = end - duration;
+                            let pause_duration = excluded_duration(start..end, &request.pauses);
+                            let effective_duration = duration - pause_duration;
+                            let effective_seconds = effective_duration.num_seconds() as f32;
+                            let expected_parts = effective_seconds / request.target_cycle_time;
+                            (expected + expected_parts, done + row.good_parts)
+                        });
+                    let performance = f32::from(done_parts) / expected_parts * 100.0;
                     if reply_tx.send(performance).is_err() {
                         error!(kind = "response channel sending");
                     }
