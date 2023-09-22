@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.3.2...v2.4.0) (2023-09-22)
+
+
+### Features
+
+* implement current shift objective graph ([2dc8a8c](https://github.com/cailloumajor/influxdb-compute-api/commit/2dc8a8c5da13cd30262b23cf5030c356ccdf747c))
+* implement current week objective graph ([6eaa28e](https://github.com/cailloumajor/influxdb-compute-api/commit/6eaa28ebe9a19608706563c9732db9b46f3a2ae4))
+
+
+### Bug Fixes
+
+* **deps:** update rust docker tag to v1.72.1 ([d0c14cf](https://github.com/cailloumajor/influxdb-compute-api/commit/d0c14cfe2f33b71b2940beac9be1d2852c5e97c3))
+
 ## [2.3.2](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.3.1...v2.3.2) (2023-09-19)
 
 
