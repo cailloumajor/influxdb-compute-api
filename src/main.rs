@@ -16,6 +16,7 @@ mod headers;
 mod http_api;
 mod influxdb;
 mod level_filter;
+mod production_objective;
 mod time;
 
 use level_filter::VerbosityLevelFilter;
@@ -65,6 +66,12 @@ async fn main() -> anyhow::Result<()> {
     let (timeline_channel, timeline_task) = influxdb_client.handle_timeline();
     let (performance_channel, performance_task) = influxdb_client.handle_performance();
 
+    let production_objective = production_objective::ProductionObjective;
+    let (shift_objective_channel, shift_objective_task) =
+        production_objective.handle_shift_objective();
+    let (week_objective_channel, week_objective_task) =
+        production_objective.handle_week_objective();
+
     let signals = Signals::new(TERM_SIGNALS).context("error registering termination signals")?;
     let signals_handle = signals.handle();
 
@@ -74,6 +81,8 @@ async fn main() -> anyhow::Result<()> {
         partner_config_channel,
         timeline_channel,
         performance_channel,
+        shift_objective_channel,
+        week_objective_channel,
     });
     async move {
         info!(addr = %args.common.listen_address, msg = "start listening");
@@ -96,7 +105,9 @@ async fn main() -> anyhow::Result<()> {
         partner_config_task,
         health_task,
         timeline_task,
-        performance_task
+        performance_task,
+        shift_objective_task,
+        week_objective_task,
     )
     .context("error joining tasks")?;
 

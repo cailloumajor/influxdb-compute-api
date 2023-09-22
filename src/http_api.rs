@@ -14,6 +14,10 @@ use crate::influxdb::{
     HealthChannel, PerformanceChannel, PerformanceRequest, TimelineChannel, TimelineRequest,
     TimelineResponse,
 };
+use crate::production_objective::{
+    ObjectiveData, ShiftObjectiveChannel, ShiftObjectiveRequest, WeekObjectiveChannel,
+    WeekObjectiveRequest,
+};
 
 type HandlerError = (StatusCode, &'static str);
 
@@ -44,6 +48,8 @@ pub(crate) struct AppState {
     pub(crate) partner_config_channel: PartnerConfigChannel,
     pub(crate) timeline_channel: TimelineChannel,
     pub(crate) performance_channel: PerformanceChannel,
+    pub(crate) shift_objective_channel: ShiftObjectiveChannel,
+    pub(crate) week_objective_channel: WeekObjectiveChannel,
 }
 
 pub(crate) fn app(state: AppState) -> Router {
@@ -51,6 +57,11 @@ pub(crate) fn app(state: AppState) -> Router {
         .route("/health", routing::get(health_handler))
         .route("/timeline/:id", routing::get(timeline_handler))
         .route("/performance/:id", routing::get(performance_handler))
+        .route(
+            "/shift-objective/:id",
+            routing::get(shift_objective_handler),
+        )
+        .route("/week-objective/:id", routing::get(week_objective_handler))
         .with_state(state)
 }
 
@@ -101,6 +112,7 @@ async fn performance_handler(
     let CommonConfig {
         shift_start_times,
         pauses,
+        ..
     } = state
         .common_config_channel
         .roundtrip(())
@@ -139,13 +151,116 @@ async fn performance_handler(
         })
 }
 
+#[instrument(name = "shift_objective_api_handler", skip_all)]
+async fn shift_objective_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    TypedHeader(client_timezone): TypedHeader<ClientTimezone>,
+) -> Result<Json<ObjectiveData>, HandlerError> {
+    let CommonConfig {
+        shift_start_times,
+        pauses,
+        ..
+    } = state
+        .common_config_channel
+        .roundtrip(())
+        .await
+        .map_err(|err| {
+            error!(kind = "common config channel roundtrip", %err);
+            INTERNAL_ERROR
+        })?;
+    let partner_config_request = PartnerConfigRequest { id };
+    let PartnerConfig {
+        target_cycle_time,
+        target_efficiency,
+        ..
+    } = state
+        .partner_config_channel
+        .roundtrip(partner_config_request)
+        .await
+        .map_err(|err| {
+            error!(kind = "partner config channel roundtrip", %err);
+            INTERNAL_ERROR
+        })?;
+    let objective_request = ShiftObjectiveRequest {
+        shift_start_times,
+        pauses,
+        timezone: client_timezone.into_inner(),
+        target_cycle_time,
+        target_efficiency,
+    };
+    state
+        .shift_objective_channel
+        .roundtrip(objective_request)
+        .await
+        .map_err(|err| {
+            error!(kind = "shift objective channel roundtrip", %err);
+            INTERNAL_ERROR
+        })
+        .map(Json)
+}
+
+#[instrument(name = "week_objective_api_handler", skip_all)]
+async fn week_objective_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    TypedHeader(client_timezone): TypedHeader<ClientTimezone>,
+) -> Result<Json<ObjectiveData>, HandlerError> {
+    let CommonConfig {
+        shift_start_times,
+        pauses,
+        week_start,
+    } = state
+        .common_config_channel
+        .roundtrip(())
+        .await
+        .map_err(|err| {
+            error!(kind = "common config channel roundtrip", %err);
+            INTERNAL_ERROR
+        })?;
+    let partner_config_request = PartnerConfigRequest { id };
+    let PartnerConfig {
+        target_cycle_time,
+        target_efficiency,
+        shift_engaged,
+    } = state
+        .partner_config_channel
+        .roundtrip(partner_config_request)
+        .await
+        .map_err(|err| {
+            error!(kind = "partner config channel roundtrip", %err);
+            INTERNAL_ERROR
+        })?;
+    let objective_request = WeekObjectiveRequest {
+        shift_start_times,
+        shift_engaged,
+        pauses,
+        week_start,
+        timezone: client_timezone.into_inner(),
+        target_cycle_time,
+        target_efficiency,
+    };
+    state
+        .week_objective_channel
+        .roundtrip(objective_request)
+        .await
+        .map_err(|err| {
+            error!(kind = "shift objective channel roundtrip", %err);
+            INTERNAL_ERROR
+        })
+        .map(Json)
+}
+
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
     use axum::http::Request;
+    use chrono::Weekday;
     use tower::ServiceExt;
 
     use crate::channel::{roundtrip_channel, RoundtripSender};
+    use crate::config_api::WeekStart;
+    use crate::production_objective::ObjectivePoint;
 
     use super::*;
 
@@ -156,6 +271,10 @@ mod tests {
             let config = CommonConfig {
                 shift_start_times: vec!["02:03:04".parse().unwrap()],
                 pauses: vec![("05:06:07".parse().unwrap(), "08:09:10".parse().unwrap())],
+                week_start: WeekStart {
+                    day: Weekday::Mon,
+                    shift_index: 0,
+                },
             };
             reply_tx.send(config).expect("error sending response");
         });
@@ -167,8 +286,9 @@ mod tests {
         tokio::spawn(async move {
             let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
             let config = PartnerConfig {
-                target_cycle_time: 1.2,
-                target_efficiency: 3.4,
+                target_cycle_time: Default::default(),
+                target_efficiency: Default::default(),
+                shift_engaged: Default::default(),
             };
             reply_tx.send(config).expect("error sending response");
         });
@@ -185,12 +305,16 @@ mod tests {
             let (partner_config_channel, _) = roundtrip_channel(1);
             let (timeline_channel, _) = roundtrip_channel(1);
             let (performance_channel, _) = roundtrip_channel(1);
+            let (shift_objective_channel, _) = roundtrip_channel(1);
+            let (week_objective_channel, _) = roundtrip_channel(1);
             let app = app(AppState {
                 health_channel,
                 common_config_channel,
                 partner_config_channel,
                 timeline_channel,
                 performance_channel,
+                shift_objective_channel,
+                week_objective_channel,
             });
             let req = Request::builder()
                 .uri("/health")
@@ -251,12 +375,16 @@ mod tests {
             let (common_config_channel, _) = roundtrip_channel(1);
             let (health_channel, _) = roundtrip_channel(1);
             let (performance_channel, _) = roundtrip_channel(1);
+            let (shift_objective_channel, _) = roundtrip_channel(1);
+            let (week_objective_channel, _) = roundtrip_channel(1);
             let app = app(AppState {
                 health_channel,
                 common_config_channel,
                 partner_config_channel,
                 timeline_channel,
                 performance_channel,
+                shift_objective_channel,
+                week_objective_channel,
             });
             let req = Request::builder()
                 .uri("/timeline/someid")
@@ -328,12 +456,16 @@ mod tests {
         ) -> (Router, Request<Body>) {
             let (health_channel, _) = roundtrip_channel(1);
             let (timeline_channel, _) = roundtrip_channel(1);
+            let (shift_objective_channel, _) = roundtrip_channel(1);
+            let (week_objective_channel, _) = roundtrip_channel(1);
             let app = app(AppState {
                 health_channel,
                 common_config_channel,
                 partner_config_channel,
                 timeline_channel,
                 performance_channel,
+                shift_objective_channel,
+                week_objective_channel,
             });
             let req = Request::builder()
                 .uri("/performance/anid")
@@ -393,6 +525,201 @@ mod tests {
             assert_eq!(res.headers()["Content-Type"], "application/json");
             let body = hyper::body::to_bytes(res).await.unwrap();
             assert_eq!(body, "42.4242");
+        }
+    }
+
+    mod shift_objective_handler {
+        use super::*;
+
+        fn testing_fixture(
+            common_config_channel: CommonConfigChannel,
+            partner_config_channel: PartnerConfigChannel,
+            shift_objective_channel: ShiftObjectiveChannel,
+        ) -> (Router, Request<Body>) {
+            let (health_channel, _) = roundtrip_channel(1);
+            let (timeline_channel, _) = roundtrip_channel(1);
+            let (performance_channel, _) = roundtrip_channel(1);
+            let (week_objective_channel, _) = roundtrip_channel(1);
+            let app = app(AppState {
+                health_channel,
+                common_config_channel,
+                partner_config_channel,
+                timeline_channel,
+                performance_channel,
+                shift_objective_channel,
+                week_objective_channel,
+            });
+            let req = Request::builder()
+                .uri("/shift-objective/anotherid")
+                .header("client-timezone", "Europe/Paris")
+                .body(Body::empty())
+                .unwrap();
+            (app, req)
+        }
+
+        fn successful_shift_objective_tx() -> RoundtripSender<ShiftObjectiveRequest, ObjectiveData>
+        {
+            let (tx, mut rx) = roundtrip_channel(1);
+            tokio::spawn(async move {
+                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                reply_tx
+                    .send(vec![
+                        ObjectivePoint {
+                            timestamp: 0,
+                            value: 0,
+                        },
+                        ObjectivePoint {
+                            timestamp: 123,
+                            value: 456,
+                        },
+                    ])
+                    .expect("error sending response");
+            });
+            tx
+        }
+
+        #[tokio::test]
+        async fn common_config_roundtrip_error() {
+            let (common_config_tx, _) = roundtrip_channel(1);
+            let partner_config_tx = successful_partner_config_tx();
+            let shift_objective_tx = successful_shift_objective_tx();
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, shift_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        #[tokio::test]
+        async fn partner_config_roundtrip_error() {
+            let common_config_tx = successful_common_config_tx();
+            let (partner_config_tx, _) = roundtrip_channel(1);
+            let shift_objective_tx = successful_shift_objective_tx();
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, shift_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        #[tokio::test]
+        async fn shift_objective_roundtrip_error() {
+            let common_config_tx = successful_common_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
+            let (shift_objective_tx, _) = roundtrip_channel(1);
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, shift_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        #[tokio::test]
+        async fn success() {
+            let common_config_tx = successful_common_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
+            let shift_objective_tx = successful_shift_objective_tx();
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, shift_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::OK);
+            assert_eq!(res.headers()["Content-Type"], "application/json");
+            let body = hyper::body::to_bytes(res).await.unwrap();
+            assert_eq!(body, r#"[{"t":0,"v":0},{"t":123,"v":456}]"#);
+        }
+    }
+
+    mod week_objective_handler {
+        use super::*;
+
+        fn testing_fixture(
+            common_config_channel: CommonConfigChannel,
+            partner_config_channel: PartnerConfigChannel,
+            week_objective_channel: WeekObjectiveChannel,
+        ) -> (Router, Request<Body>) {
+            let (health_channel, _) = roundtrip_channel(1);
+            let (timeline_channel, _) = roundtrip_channel(1);
+            let (performance_channel, _) = roundtrip_channel(1);
+            let (shift_objective_channel, _) = roundtrip_channel(1);
+            let app = app(AppState {
+                health_channel,
+                common_config_channel,
+                partner_config_channel,
+                timeline_channel,
+                performance_channel,
+                shift_objective_channel,
+                week_objective_channel,
+            });
+            let req = Request::builder()
+                .uri("/week-objective/yetanotherid")
+                .header("client-timezone", "Europe/Paris")
+                .body(Body::empty())
+                .unwrap();
+            (app, req)
+        }
+
+        fn successful_week_objective_tx() -> RoundtripSender<WeekObjectiveRequest, ObjectiveData> {
+            let (tx, mut rx) = roundtrip_channel(1);
+            tokio::spawn(async move {
+                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                reply_tx
+                    .send(vec![
+                        ObjectivePoint {
+                            timestamp: 0,
+                            value: 0,
+                        },
+                        ObjectivePoint {
+                            timestamp: 345,
+                            value: 678,
+                        },
+                    ])
+                    .expect("error sending response");
+            });
+            tx
+        }
+
+        #[tokio::test]
+        async fn common_config_roundtrip_error() {
+            let (common_config_tx, _) = roundtrip_channel(1);
+            let partner_config_tx = successful_partner_config_tx();
+            let week_objective_tx = successful_week_objective_tx();
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, week_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        #[tokio::test]
+        async fn partner_config_roundtrip_error() {
+            let common_config_tx = successful_common_config_tx();
+            let (partner_config_tx, _) = roundtrip_channel(1);
+            let week_objective_tx = successful_week_objective_tx();
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, week_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        #[tokio::test]
+        async fn week_objective_roundtrip_error() {
+            let common_config_tx = successful_common_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
+            let (week_objective_tx, _) = roundtrip_channel(1);
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, week_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        #[tokio::test]
+        async fn success() {
+            let common_config_tx = successful_common_config_tx();
+            let partner_config_tx = successful_partner_config_tx();
+            let week_objective_tx = successful_week_objective_tx();
+            let (app, req) =
+                testing_fixture(common_config_tx, partner_config_tx, week_objective_tx);
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::OK);
+            assert_eq!(res.headers()["Content-Type"], "application/json");
+            let body = hyper::body::to_bytes(res).await.unwrap();
+            assert_eq!(body, r#"[{"t":0,"v":0},{"t":345,"v":678}]"#);
         }
     }
 }

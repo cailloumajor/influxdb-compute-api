@@ -20,14 +20,25 @@ module.exports = () => {
                 [pausesTimes[0], pausesTimes[1]],
                 [pausesTimes[2], pausesTimes[3]],
             ],
+            weekStart: {
+                day: "Monday",
+                shiftIndex: 0,
+            },
         },
         id1: {
             targetCycleTime: 21.2,
             targetEfficiency: 0,
+            shiftEngaged: [],
         },
         id2: {
             targetCycleTime: 21.3,
             targetEfficiency: 0,
+            shiftEngaged: [],
+        },
+        id3: {
+            targetCycleTime: 10.0,
+            targetEfficiency: 0.7,
+            shiftEngaged: [true, false, false, true, true],
         },
     };
 };
