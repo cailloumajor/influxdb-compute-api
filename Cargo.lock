@@ -737,7 +737,7 @@ checksum = "1e186cfbae8084e513daff4240b4797e342f988cecda4fb6c939150f96315fd8"
 
 [[package]]
 name = "influxdb-compute-api"
-version = "2.3.2"
+version = "2.4.0"
 dependencies = [
  "anyhow",
  "arcstr",
