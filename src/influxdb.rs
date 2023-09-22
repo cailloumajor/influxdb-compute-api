@@ -16,7 +16,7 @@ use tracing::{error, info, info_span, instrument, Instrument};
 use url::Url;
 
 use crate::channel::{roundtrip_channel, RoundtripSender};
-use crate::time::{apply_time_spans, find_shift_start};
+use crate::time::{apply_time_spans, find_shift_bounds};
 
 #[derive(Args)]
 #[group(skip)]
@@ -268,7 +268,7 @@ impl Client {
 
                 while let Some((request, reply_tx)) = rx.recv().await {
                     let (start_time, _) =
-                        find_shift_start(&request.timezone, &request.shift_start_times);
+                        find_shift_bounds(&request.timezone, &request.shift_start_times);
                     let flux_query = FLUX_QUERY
                         .replace("__idplaceholder__", &request.id)
                         .replace("__startplaceholder__", &start_time.to_rfc3339());

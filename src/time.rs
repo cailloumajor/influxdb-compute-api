@@ -27,8 +27,8 @@ pub(crate) fn utc_now() -> DateTime<Utc> {
     Utc::now()
 }
 
-/// Returns the date and time of current shift start, given a timezone and
-/// a slice of shift start times.
+/// Returns the date and time of current shift start and end, given a timezone
+/// and a slice of shift start times.
 ///
 /// # Panics
 ///
@@ -44,7 +44,7 @@ pub(crate) fn utc_now() -> DateTime<Utc> {
 ///
 /// * are in chronological order;
 /// * covers the entire day.
-pub(crate) fn find_shift_start<Tz>(
+pub(crate) fn find_shift_bounds<Tz>(
     timezone: &Tz,
     shift_start_times: &[NaiveTime],
 ) -> (DateTime<Tz>, DateTime<Tz>)
@@ -151,7 +151,7 @@ mod tests {
             let expected_start: DateTime<Utc> = "1984-12-08T09:00:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-09T09:00:00Z".parse().unwrap();
             let shifts = &[NaiveTime::from_hms_opt(11, 0, 0).unwrap()];
-            let result = find_shift_start(&GMTMinus2, shifts);
+            let result = find_shift_bounds(&GMTMinus2, shifts);
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -162,7 +162,7 @@ mod tests {
             let expected_start: DateTime<Utc> = "1984-12-09T13:00:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-10T13:00:00Z".parse().unwrap();
             let shifts = &[NaiveTime::from_hms_opt(11, 0, 0).unwrap()];
-            let result = find_shift_start(&GMTPlus2, shifts);
+            let result = find_shift_bounds(&GMTPlus2, shifts);
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -172,7 +172,7 @@ mod tests {
             override_now(Some("1984-12-09T01:15:00Z".parse().unwrap()));
             let expected_start: DateTime<Utc> = "1984-12-09T01:15:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-09T09:30:00Z".parse().unwrap();
-            let result = find_shift_start(&GMTMinus2, &shift_times());
+            let result = find_shift_bounds(&GMTMinus2, &shift_times());
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -182,7 +182,7 @@ mod tests {
             override_now(Some("1984-12-09T07:30:00Z".parse().unwrap()));
             let expected_start: DateTime<Utc> = "1984-12-09T07:30:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-09T15:00:00Z".parse().unwrap();
-            let result = find_shift_start(&GMTMinus4, &shift_times());
+            let result = find_shift_bounds(&GMTMinus4, &shift_times());
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -192,7 +192,7 @@ mod tests {
             override_now(Some("1984-12-09T20:00:00Z".parse().unwrap()));
             let expected_start: DateTime<Utc> = "1984-12-09T20:00:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-10T04:15:00Z".parse().unwrap();
-            let result = find_shift_start(&GMTPlus1, &shift_times());
+            let result = find_shift_bounds(&GMTPlus1, &shift_times());
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -202,7 +202,7 @@ mod tests {
             override_now(Some("1984-12-09T03:30:00Z".parse().unwrap()));
             let expected_start: DateTime<Utc> = "1984-12-09T01:15:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-09T09:30:00Z".parse().unwrap();
-            let result = find_shift_start(&GMTMinus2, &shift_times());
+            let result = find_shift_bounds(&GMTMinus2, &shift_times());
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -212,7 +212,7 @@ mod tests {
             override_now(Some("1984-12-09T14:30:00Z".parse().unwrap()));
             let expected_start: DateTime<Utc> = "1984-12-09T14:30:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-09T22:00:00Z".parse().unwrap();
-            let result = find_shift_start(&GMTPlus3, &shift_times());
+            let result = find_shift_bounds(&GMTPlus3, &shift_times());
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -222,7 +222,7 @@ mod tests {
             override_now(Some("1984-12-09T21:00:00Z".parse().unwrap()));
             let expected_start: DateTime<Utc> = "1984-12-09T19:00:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-10T03:15:00Z".parse().unwrap();
-            let result = find_shift_start(&Utc, &shift_times());
+            let result = find_shift_bounds(&Utc, &shift_times());
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }
@@ -232,7 +232,7 @@ mod tests {
             override_now(Some("1984-12-10T03:00:00Z".parse().unwrap()));
             let expected_start: DateTime<Utc> = "1984-12-09T21:00:00Z".parse().unwrap();
             let expected_end: DateTime<Utc> = "1984-12-10T05:15:00Z".parse().unwrap();
-            let result = find_shift_start(&GMTPlus2, &shift_times());
+            let result = find_shift_bounds(&GMTPlus2, &shift_times());
             assert_eq!(result.0, expected_start);
             assert_eq!(result.1, expected_end);
         }

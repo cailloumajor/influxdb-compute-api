@@ -61,6 +61,27 @@ Returns data to draw the production objective graphics for the current shift.
 | `t` | _number_   | Data point UNIX timestamp in seconds |
 | `v` | _number_   | Production objective value           |
 
+### Week objective graphics data
+
+#### `GET` `/week-objective/{id}`
+
+Returns data to draw the production objective graphics for the current week.
+
+#### Parameters
+
+| Name              | Source   | Description     |
+| ----------------- | -------- | --------------- |
+| `id`              | _path_   | Partner ID      |
+| `Client-Timezone` | _header_ | Client timezone |
+
+#### Response
+
+| Code | Description                                  |
+| ---- | -------------------------------------------- |
+| 200  | Graphics data (JSON format, see table above) |
+| 400  | Bad request                                  |
+| 500  | Internal error                               |
+
 ### Performance ratio
 
 #### `GET` `/performance/{id}`

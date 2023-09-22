@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use chrono::NaiveTime;
+use chrono::{NaiveTime, Weekday};
 use clap::Args;
 use reqwest::{header, Client as HttpClient};
 use serde::de::DeserializeOwned;
@@ -35,9 +35,17 @@ pub(crate) struct Config {
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct WeekStart {
+    pub(crate) day: Weekday,
+    pub(crate) shift_index: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CommonConfig {
     pub(crate) shift_start_times: Vec<NaiveTime>,
     pub(crate) pauses: Vec<(NaiveTime, NaiveTime)>,
+    pub(crate) week_start: WeekStart,
 }
 
 pub(crate) type CommonConfigChannel = RoundtripSender<(), CommonConfig>;
@@ -51,6 +59,7 @@ pub(crate) struct PartnerConfigRequest {
 pub(crate) struct PartnerConfig {
     pub(crate) target_cycle_time: f32,
     pub(crate) target_efficiency: f32,
+    pub(crate) shift_engaged: Vec<bool>,
 }
 
 #[derive(Clone)]
@@ -125,6 +134,10 @@ impl Client {
             error!(kind = "shift start times are not sorted");
             return Err(());
         }
+        if common_config.week_start.shift_index > (common_config.shift_start_times.len() - 1) {
+            error!(kind = "week start shift index is out of bounds");
+            return Err(());
+        }
         cached.replace((Instant::now(), common_config.clone()));
         Ok(common_config)
     }
@@ -184,6 +197,7 @@ impl Client {
 mod tests {
     use std::time::Duration;
 
+    use indoc::indoc;
     use mockito::{Mock, Server};
     use tokio::sync::oneshot;
 
@@ -320,7 +334,6 @@ mod tests {
     }
 
     mod common_config {
-        use indoc::indoc;
         use tokio::task::JoinSet;
 
         use super::*;
@@ -331,7 +344,11 @@ mod tests {
                 "pauses": [
                     ["07:08:09", "10:11:12"],
                     ["13:14:15", "16:17:18"]
-                ]
+                ],
+                "weekStart": {
+                    "day": "Monday",
+                    "shiftIndex": 0
+                }
             }"#};
             let common_config = CommonConfig {
                 shift_start_times: vec!["01:02:03".parse().unwrap(), "04:05:06".parse().unwrap()],
@@ -339,6 +356,10 @@ mod tests {
                     ("07:08:09".parse().unwrap(), "10:11:12".parse().unwrap()),
                     ("13:14:15".parse().unwrap(), "16:17:18".parse().unwrap()),
                 ],
+                week_start: WeekStart {
+                    day: Weekday::Mon,
+                    shift_index: 0,
+                },
             };
             (body, common_config)
         }
@@ -366,7 +387,42 @@ mod tests {
                     "pauses": [
                         ["07:08:09", "10:11:12"],
                         ["13:14:15", "16:17:18"]
-                    ]
+                    ],
+                    "weekStart": {
+                        "day": "Monday",
+                        "shiftIndex": 0
+                    }
+                }"#})
+                .with_header("content-type", "application/json")
+                .create_async()
+                .await;
+            let config = Config {
+                config_api_url: server.url().parse().unwrap(),
+                common_config_cache_expiration: Duration::ZERO.into(),
+            };
+            let http_client = HttpClient::new();
+            let client = Client::new(&config, http_client);
+            let result = client.cached_common_config().await;
+            assert!(result.is_err());
+            mock.assert_async().await;
+        }
+
+        #[tokio::test]
+        async fn week_start_shift_index_out_of_bounds() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("GET", "/common")
+                .with_status(200)
+                .with_body(indoc! {r#"{
+                    "shiftStartTimes": ["01:02:03", "04:05:06"],
+                    "pauses": [
+                        ["07:08:09", "10:11:12"],
+                        ["13:14:15", "16:17:18"]
+                    ],
+                    "weekStart": {
+                        "day": "Monday",
+                        "shiftIndex": 2
+                    }
                 }"#})
                 .with_header("content-type", "application/json")
                 .create_async()
@@ -496,7 +552,11 @@ mod tests {
             let mock = server
                 .mock("GET", "/testid")
                 .with_status(200)
-                .with_body(r#"{"targetCycleTime":42.42,"targetEfficiency":54.65}"#)
+                .with_body(indoc! {r#"{
+                    "targetCycleTime": 42.42,
+                    "targetEfficiency": 54.65,
+                    "shiftEngaged": [true, false, true, true]
+                }"#})
                 .with_header("content-type", "application/json")
                 .create_async()
                 .await;
@@ -517,7 +577,8 @@ mod tests {
                 config,
                 PartnerConfig {
                     target_cycle_time: 42.42,
-                    target_efficiency: 54.65
+                    target_efficiency: 54.65,
+                    shift_engaged: vec![true, false, true, true]
                 }
             );
             mock.assert_async().await;
