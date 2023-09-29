@@ -267,7 +267,7 @@ mod tests {
     fn successful_common_config_tx() -> RoundtripSender<(), CommonConfig> {
         let (tx, mut rx) = roundtrip_channel(1);
         tokio::spawn(async move {
-            let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+            let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
             let config = CommonConfig {
                 shift_start_times: vec!["02:03:04".parse().unwrap()],
                 pauses: vec![("05:06:07".parse().unwrap(), "08:09:10".parse().unwrap())],
@@ -284,7 +284,7 @@ mod tests {
     fn successful_partner_config_tx() -> RoundtripSender<PartnerConfigRequest, PartnerConfig> {
         let (tx, mut rx) = roundtrip_channel(1);
         tokio::spawn(async move {
-            let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+            let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
             let config = PartnerConfig {
                 target_cycle_time: Default::default(),
                 target_efficiency: Default::default(),
@@ -335,7 +335,7 @@ mod tests {
         async fn unhealthy() {
             let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
                 reply_tx
                     .send(StatusCode::INTERNAL_SERVER_ERROR)
                     .expect("error sending response");
@@ -349,7 +349,7 @@ mod tests {
         async fn healthy() {
             let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
                 reply_tx
                     .send(StatusCode::OK)
                     .expect("error sending response");
@@ -396,7 +396,7 @@ mod tests {
         fn successful_timeline_tx() -> RoundtripSender<TimelineRequest, TimelineResponse> {
             let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
                 let slots: Vec<TimelineSlot> = vec![
                     TimelineSlot {
                         start: "1970-01-01T00:00:00Z".parse().unwrap(),
@@ -478,7 +478,7 @@ mod tests {
         fn successful_performance_tx() -> RoundtripSender<PerformanceRequest, f32> {
             let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
                 reply_tx.send(42.4242).expect("error sending response");
             });
             tx
@@ -561,7 +561,7 @@ mod tests {
         {
             let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
                 reply_tx
                     .send(vec![
                         ObjectivePoint {
@@ -658,7 +658,7 @@ mod tests {
         fn successful_week_objective_tx() -> RoundtripSender<WeekObjectiveRequest, ObjectiveData> {
             let (tx, mut rx) = roundtrip_channel(1);
             tokio::spawn(async move {
-                let (_, reply_tx) = rx.recv().await.expect("channel has been closed");
+                let (_, _, reply_tx) = rx.recv().await.expect("channel has been closed");
                 reply_tx
                     .send(vec![
                         ObjectivePoint {

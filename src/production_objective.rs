@@ -101,7 +101,7 @@ impl ProductionObjective {
             async move {
                 info!(status = "started");
 
-                while let Some((request, reply_tx)) = rx.recv().await {
+                while let Some((request, _, reply_tx)) = rx.recv().await {
                     let ShiftObjectiveRequest {
                         shift_start_times,
                         pauses,
@@ -136,7 +136,7 @@ impl ProductionObjective {
             async move {
                 info!(status = "started");
 
-                while let Some((request, reply_tx)) = rx.recv().await {
+                while let Some((request, _, reply_tx)) = rx.recv().await {
                     let WeekObjectiveRequest {
                         shift_start_times,
                         shift_engaged,
@@ -192,7 +192,6 @@ impl ProductionObjective {
 #[cfg(test)]
 mod tests {
     use chrono_tz::UTC;
-    use tokio::sync::oneshot;
 
     use crate::time::override_now;
 
@@ -223,7 +222,6 @@ mod tests {
         #[tokio::test]
         async fn now_in_first_shift() {
             override_now(Some("1984-12-09T07:00:00Z".parse().unwrap()));
-            let (tx, rx) = oneshot::channel();
             let request = ShiftObjectiveRequest {
                 shift_start_times: start_times_fixture(),
                 pauses: pauses_fixture(),
@@ -233,8 +231,7 @@ mod tests {
             };
             let actor = ProductionObjective;
             let (channel, task) = actor.handle_shift_objective();
-            channel.send(request, tx).await;
-            let points = rx.await.unwrap();
+            let points = channel.roundtrip(request).await.unwrap();
             assert_eq!(
                 points,
                 [
@@ -270,7 +267,6 @@ mod tests {
         #[tokio::test]
         async fn no_pause() {
             override_now(Some("1984-12-09T13:29:59Z".parse().unwrap()));
-            let (tx, rx) = oneshot::channel();
             let request = ShiftObjectiveRequest {
                 shift_start_times: start_times_fixture(),
                 pauses: Vec::new(),
@@ -280,8 +276,7 @@ mod tests {
             };
             let actor = ProductionObjective;
             let (channel, task) = actor.handle_shift_objective();
-            channel.send(request, tx).await;
-            let points = rx.await.unwrap();
+            let points = channel.roundtrip(request).await.unwrap();
             assert_eq!(
                 points,
                 [
@@ -305,7 +300,6 @@ mod tests {
         #[tokio::test]
         async fn first_engagement_configuration() {
             override_now(Some("2023-09-19T14:00:00Z".parse().unwrap()));
-            let (tx, rx) = oneshot::channel();
             let week_start = WeekStart {
                 day: chrono::Weekday::Tue,
                 shift_index: 1,
@@ -321,8 +315,7 @@ mod tests {
             };
             let actor = ProductionObjective;
             let (channel, task) = actor.handle_week_objective();
-            channel.send(request, tx).await;
-            let points = rx.await.unwrap();
+            let points = channel.roundtrip(request).await.unwrap();
             assert_eq!(
                 points,
                 [
@@ -382,7 +375,6 @@ mod tests {
         #[tokio::test]
         async fn second_engagement_configuration() {
             override_now(Some("2023-09-19T14:00:00Z".parse().unwrap()));
-            let (tx, rx) = oneshot::channel();
             let week_start = WeekStart {
                 day: chrono::Weekday::Tue,
                 shift_index: 1,
@@ -398,8 +390,7 @@ mod tests {
             };
             let actor = ProductionObjective;
             let (channel, task) = actor.handle_week_objective();
-            channel.send(request, tx).await;
-            let points = rx.await.unwrap();
+            let points = channel.roundtrip(request).await.unwrap();
             assert_eq!(
                 points,
                 [

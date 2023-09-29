@@ -150,7 +150,7 @@ impl Client {
             async move {
                 info!(status = "started");
 
-                while let Some((_, reply_tx)) = rx.recv().await {
+                while let Some((_, _, reply_tx)) = rx.recv().await {
                     let Ok(common_config) = cloned_self.cached_common_config().await else {
                         continue;
                     };
@@ -175,7 +175,7 @@ impl Client {
             async move {
                 info!(status = "started");
 
-                while let Some((request, reply_tx)) = rx.recv().await {
+                while let Some((request, _, reply_tx)) = rx.recv().await {
                     let Ok(partner_config) = cloned_self.query(Some(&request.id)).await else {
                         continue;
                     };
@@ -199,7 +199,6 @@ mod tests {
 
     use indoc::indoc;
     use mockito::{Mock, Server};
-    use tokio::sync::oneshot;
 
     use super::*;
 
@@ -536,13 +535,11 @@ mod tests {
             };
             let http_client = HttpClient::new();
             let client = Client::new(&config, http_client);
-            let (tx, rx) = oneshot::channel();
             let request = PartnerConfigRequest {
                 id: "testid".to_string(),
             };
             let (config_channel, task) = client.handle_partner_config();
-            config_channel.send(request, tx).await;
-            assert!(rx.await.is_err());
+            assert!(config_channel.roundtrip(request).await.is_err());
             assert!(!task.is_finished());
         }
 
@@ -566,13 +563,11 @@ mod tests {
             };
             let http_client = HttpClient::new();
             let client = Client::new(&config, http_client);
-            let (tx, rx) = oneshot::channel();
             let request = PartnerConfigRequest {
                 id: "testid".to_string(),
             };
             let (config_channel, task) = client.handle_partner_config();
-            config_channel.send(request, tx).await;
-            let config = rx.await.unwrap();
+            let config = config_channel.roundtrip(request).await.unwrap();
             assert_eq!(
                 config,
                 PartnerConfig {
