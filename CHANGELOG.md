@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.1](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.0...v2.4.1) (2023-10-02)
+
+
+### Bug Fixes
+
+* cancel in-flight handling if request was cancelled ([6119cd0](https://github.com/cailloumajor/influxdb-compute-api/commit/6119cd011bf488e4541d91ae76c71cb39682f1c2))
+* **deps:** update rust crate clap to 4.4.6 ([ce50963](https://github.com/cailloumajor/influxdb-compute-api/commit/ce5096356d201b5add7368f4cddcedf349a90de0))
+
 ## [2.4.0](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.3.2...v2.4.0) (2023-09-22)
 
 
