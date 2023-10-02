@@ -196,7 +196,7 @@ impl Client {
             async move {
                 info!(status = "started");
 
-                while let Some((_, reply_tx)) = rx.recv().await {
+                while let Some((_, _, reply_tx)) = rx.recv().await {
                     let response = match http_client.get(url.clone()).send().await {
                         Ok(resp) => resp,
                         Err(err) => {
@@ -226,26 +226,35 @@ impl Client {
             async move {
                 info!(status = "started");
 
-                while let Some((request, reply_tx)) = rx.recv().await {
-                    let flux_query = FLUX_QUERY
-                        .replace("__idplaceholder__", &request.id)
-                        .replace(
-                            "__targetcycletimeplaceholder__",
-                            &request.target_cycle_time.to_string(),
-                        );
-                    let Ok(mut rows) = cloned_self.query::<TimelineRow>(&flux_query).await else {
-                        continue;
+                while let Some((request, cancellation_token, reply_tx)) = rx.recv().await {
+                    let inner_task = async {
+                        let flux_query = FLUX_QUERY
+                            .replace("__idplaceholder__", &request.id)
+                            .replace(
+                                "__targetcycletimeplaceholder__",
+                                &request.target_cycle_time.to_string(),
+                            );
+                        let Ok(mut rows) = cloned_self.query::<TimelineRow>(&flux_query).await
+                        else {
+                            return;
+                        };
+                        if let Some(last_row) = rows.pop() {
+                            rows.dedup_by_key(|row| row.color);
+                            rows.push(last_row);
+                        };
+                        let slots = rows
+                            .into_iter()
+                            .map(|TimelineRow { time: start, color }| TimelineSlot { start, color })
+                            .collect::<Vec<_>>();
+                        if reply_tx.send(slots.into()).is_err() {
+                            error!(kind = "response channel sending");
+                        }
                     };
-                    if let Some(last_row) = rows.pop() {
-                        rows.dedup_by_key(|row| row.color);
-                        rows.push(last_row);
-                    };
-                    let slots = rows
-                        .into_iter()
-                        .map(|TimelineRow { time: start, color }| TimelineSlot { start, color })
-                        .collect::<Vec<_>>();
-                    if reply_tx.send(slots.into()).is_err() {
-                        error!(kind = "response channel sending");
+                    tokio::select! {
+                        _ = cancellation_token.cancelled() => {
+                            info!(msg="request was cancelled");
+                        },
+                        _ = inner_task => {},
                     }
                 }
 
@@ -266,35 +275,44 @@ impl Client {
             async move {
                 info!(status = "started");
 
-                while let Some((request, reply_tx)) = rx.recv().await {
-                    let (start_time, _) =
-                        find_shift_bounds(&request.timezone, &request.shift_start_times);
-                    let flux_query = FLUX_QUERY
-                        .replace("__idplaceholder__", &request.id)
-                        .replace("__startplaceholder__", &start_time.to_rfc3339());
-                    let Ok(rows) = cloned_self.query::<PerformanceRow>(&flux_query).await else {
-                        continue;
+                while let Some((request, cancellation_token, reply_tx)) = rx.recv().await {
+                    let inner_task = async {
+                        let (start_time, _) =
+                            find_shift_bounds(&request.timezone, &request.shift_start_times);
+                        let flux_query = FLUX_QUERY
+                            .replace("__idplaceholder__", &request.id)
+                            .replace("__startplaceholder__", &start_time.to_rfc3339());
+                        let Ok(rows) = cloned_self.query::<PerformanceRow>(&flux_query).await
+                        else {
+                            return;
+                        };
+                        let (expected_parts, done_parts) = rows
+                            .into_iter()
+                            .filter(|row| row.elapsed.is_positive())
+                            .fold((0.0, 0), |(expected, done), row| {
+                                let end = row.end.with_timezone(&request.timezone).naive_local();
+                                let duration = Duration::minutes(row.elapsed);
+                                let start = end - duration;
+                                let pause_duration = apply_time_spans(start..end, &request.pauses)
+                                    .into_iter()
+                                    .fold(Duration::zero(), |acc, (span_start, span_end)| {
+                                        acc + (span_end - span_start)
+                                    });
+                                let effective_duration = duration - pause_duration;
+                                let effective_seconds = effective_duration.num_seconds() as f32;
+                                let expected_parts = effective_seconds / request.target_cycle_time;
+                                (expected + expected_parts, done + row.good_parts)
+                            });
+                        let performance = f32::from(done_parts) / expected_parts * 100.0;
+                        if reply_tx.send(performance).is_err() {
+                            error!(kind = "response channel sending");
+                        }
                     };
-                    let (expected_parts, done_parts) = rows
-                        .into_iter()
-                        .filter(|row| row.elapsed.is_positive())
-                        .fold((0.0, 0), |(expected, done), row| {
-                            let end = row.end.with_timezone(&request.timezone).naive_local();
-                            let duration = Duration::minutes(row.elapsed);
-                            let start = end - duration;
-                            let pause_duration = apply_time_spans(start..end, &request.pauses)
-                                .into_iter()
-                                .fold(Duration::zero(), |acc, (span_start, span_end)| {
-                                    acc + (span_end - span_start)
-                                });
-                            let effective_duration = duration - pause_duration;
-                            let effective_seconds = effective_duration.num_seconds() as f32;
-                            let expected_parts = effective_seconds / request.target_cycle_time;
-                            (expected + expected_parts, done + row.good_parts)
-                        });
-                    let performance = f32::from(done_parts) / expected_parts * 100.0;
-                    if reply_tx.send(performance).is_err() {
-                        error!(kind = "response channel sending");
+                    tokio::select! {
+                        _ = cancellation_token.cancelled() => {
+                            info!(msg="request was cancelled");
+                        },
+                        _ = inner_task => {},
                     }
                 }
 
@@ -313,7 +331,6 @@ mod tests {
 
     mod client {
         use mockito::{Matcher, Mock, Server};
-        use tokio::sync::oneshot;
 
         use super::*;
 
@@ -429,10 +446,8 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let (health_channel, task) = client.handle_health();
-                health_channel.send((), tx).await;
-                assert!(rx.await.is_err());
+                assert!(health_channel.roundtrip(()).await.is_err());
                 assert!(!task.is_finished());
             }
 
@@ -453,10 +468,8 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let (health_channel, task) = client.handle_health();
-                health_channel.send((), tx).await;
-                let status_code = rx.await.unwrap();
+                let status_code = health_channel.roundtrip(()).await.unwrap();
                 assert_eq!(status_code, 503);
                 mock.assert_async().await;
                 assert!(!task.is_finished());
@@ -479,10 +492,8 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let (health_channel, task) = client.handle_health();
-                health_channel.send((), tx).await;
-                let status_code = rx.await.unwrap();
+                let status_code = health_channel.roundtrip(()).await.unwrap();
                 assert_eq!(status_code, 200);
                 mock.assert_async().await;
                 assert!(!task.is_finished());
@@ -520,14 +531,12 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
                     target_cycle_time: 1.2,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
-                timeline_channel.send(request, tx).await;
-                assert!(rx.await.is_err());
+                assert!(timeline_channel.roundtrip(request).await.is_err());
                 mock.assert_async().await;
                 assert!(!task.is_finished());
             }
@@ -549,14 +558,12 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
                     target_cycle_time: 1.2,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
-                timeline_channel.send(request, tx).await;
-                let slots = rx.await.unwrap();
+                let slots = timeline_channel.roundtrip(request).await.unwrap();
                 assert_eq!(slots.into_inner(), vec![]);
                 mock.assert_async().await;
                 assert!(!task.is_finished());
@@ -591,14 +598,12 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let request = TimelineRequest {
                     id: "someid".to_string(),
                     target_cycle_time: 1.2,
                 };
                 let (timeline_channel, task) = client.handle_timeline();
-                timeline_channel.send(request, tx).await;
-                let slots = rx.await.unwrap();
+                let slots = timeline_channel.roundtrip(request).await.unwrap();
                 assert_eq!(
                     slots.into_inner(),
                     [
@@ -671,7 +676,6 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     shift_start_times: shift_start_times(),
@@ -680,8 +684,7 @@ mod tests {
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();
-                performance_channel.send(request, tx).await;
-                assert!(rx.await.is_err());
+                assert!(performance_channel.roundtrip(request).await.is_err());
                 mock.assert_async().await;
                 assert!(!task.is_finished());
             }
@@ -704,7 +707,6 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     shift_start_times: shift_start_times(),
@@ -713,8 +715,7 @@ mod tests {
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();
-                performance_channel.send(request, tx).await;
-                let performance_ratio = rx.await.unwrap();
+                let performance_ratio = performance_channel.roundtrip(request).await.unwrap();
                 assert!(performance_ratio.is_nan());
                 mock.assert_async().await;
                 assert!(!task.is_finished());
@@ -746,7 +747,6 @@ mod tests {
                 };
                 let http_client = HttpClient::new();
                 let client = Client::new(&config, http_client);
-                let (tx, rx) = oneshot::channel();
                 let request = PerformanceRequest {
                     id: "otherid".to_string(),
                     shift_start_times: shift_start_times(),
@@ -755,8 +755,7 @@ mod tests {
                     target_cycle_time: 21.3,
                 };
                 let (performance_channel, task) = client.handle_performance();
-                performance_channel.send(request, tx).await;
-                let performance_ratio = rx.await.unwrap();
+                let performance_ratio = performance_channel.roundtrip(request).await.unwrap();
                 assert!(60.0 < performance_ratio && performance_ratio < 60.1);
                 mock.assert_async().await;
                 assert!(!task.is_finished());
