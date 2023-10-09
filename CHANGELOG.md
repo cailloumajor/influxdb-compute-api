@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.2](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.1...v2.4.2) (2023-10-09)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate reqwest to 0.11.22 ([a0f6d4f](https://github.com/cailloumajor/influxdb-compute-api/commit/a0f6d4fdcbdcbacfa54f1542af3b3da7b3cb8cb2))
+* **deps:** update rust crate tokio to 1.33.0 ([5d7d1f3](https://github.com/cailloumajor/influxdb-compute-api/commit/5d7d1f309890603b9b4a3537aa6b5889783e2cb2))
+* **deps:** update rust docker tag to v1.73.0 ([ef0ccba](https://github.com/cailloumajor/influxdb-compute-api/commit/ef0ccba28f64a01ce90a7bbef89189951c822fc2))
+* use new (Rust 1.73.0) methods of LocalKey ([191fd44](https://github.com/cailloumajor/influxdb-compute-api/commit/191fd44f80fde226e9866a8e3fcf8cace7935447))
+
 ## [2.4.1](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.0...v2.4.1) (2023-10-02)
 
 
