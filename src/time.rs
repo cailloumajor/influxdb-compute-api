@@ -11,7 +11,7 @@ thread_local! {
 
 #[cfg(test)]
 pub(crate) fn override_now(datetime: Option<DateTime<Utc>>) {
-    OVERRIDE_NOW.with(|o| *o.borrow_mut() = datetime);
+    OVERRIDE_NOW.set(datetime);
 }
 
 /// Wraps [`Utc::now`] in release builds.
@@ -21,7 +21,7 @@ pub(crate) fn override_now(datetime: Option<DateTime<Utc>>) {
 /// Will be part of chrono with https://github.com/chronotope/chrono/pull/1244.
 pub(crate) fn utc_now() -> DateTime<Utc> {
     #[cfg(test)]
-    if let Some(datetime) = OVERRIDE_NOW.with(|o| *o.borrow()) {
+    if let Some(datetime) = OVERRIDE_NOW.take() {
         return datetime;
     }
     Utc::now()
