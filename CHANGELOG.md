@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.3](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.2...v2.4.3) (2023-10-19)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate serde to 1.0.189 ([9f2e51b](https://github.com/cailloumajor/influxdb-compute-api/commit/9f2e51bb6dc08173540d62e4daf81de1688dc3b7))
+* **deps:** update rust crate tracing to 0.1.39 ([b09ea6e](https://github.com/cailloumajor/influxdb-compute-api/commit/b09ea6e6edc791a6bb084e78ae4e9b257ee43082))
+* **deps:** update rust crate tracing to 0.1.40 ([9fe8d76](https://github.com/cailloumajor/influxdb-compute-api/commit/9fe8d76ac9c644c28d0ab0bdb660a6ab84d9aae7))
+* **deps:** update tonistiigi/xx docker tag to v1.3.0 ([e2b8117](https://github.com/cailloumajor/influxdb-compute-api/commit/e2b81174bd17a5d575bd2f568d63cc8e9393c295))
+
 ## [2.4.2](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.1...v2.4.2) (2023-10-09)
 
 
