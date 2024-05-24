@@ -6,7 +6,7 @@ use chrono::{DateTime, Days, NaiveDateTime, NaiveTime, TimeZone, Utc};
 
 #[cfg(test)]
 thread_local! {
-    static OVERRIDE_NOW:RefCell<Option<DateTime<Utc>>>=RefCell::new(None)
+    static OVERRIDE_NOW: RefCell<Option<DateTime<Utc>>> = const { RefCell::new(None) };
 }
 
 #[cfg(test)]
