@@ -1,7 +1,6 @@
 use std::io;
 use std::sync::Arc;
 
-use arcstr::ArcStr;
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Duration, NaiveTime, Utc};
 use chrono_tz::Tz;
@@ -111,20 +110,20 @@ struct PerformanceRow {
 #[derive(Clone)]
 pub(crate) struct Client {
     base_url: Arc<Url>,
-    auth_header: ArcStr,
-    org: ArcStr,
-    bucket: ArcStr,
-    measurement: ArcStr,
+    auth_header: Arc<str>,
+    org: Arc<str>,
+    bucket: Arc<str>,
+    measurement: Arc<str>,
     http_client: HttpClient,
 }
 
 impl Client {
     pub(crate) fn new(config: &Config, http_client: HttpClient) -> Self {
         let base_url = Arc::new(config.influxdb_url.clone());
-        let auth_header = ArcStr::from(format!("Token {}", config.influxdb_api_token));
-        let org = ArcStr::from(&config.influxdb_org);
-        let bucket = ArcStr::from(&config.influxdb_bucket);
-        let measurement = ArcStr::from(&config.influxdb_measurement);
+        let auth_header = Arc::from(format!("Token {}", config.influxdb_api_token).as_str());
+        let org = Arc::from(config.influxdb_org.as_str());
+        let bucket = Arc::from(config.influxdb_bucket.as_str());
+        let measurement = Arc::from(config.influxdb_measurement.as_str());
 
         Self {
             base_url,
@@ -142,7 +141,7 @@ impl Client {
         T: DeserializeOwned,
     {
         let mut url = self.base_url.join("/api/v2/query").unwrap();
-        url.query_pairs_mut().append_pair("org", self.org.as_str());
+        url.query_pairs_mut().append_pair("org", self.org.as_ref());
         let body = flux_query
             .replace("__bucketplaceholder__", &self.bucket)
             .replace("__measurementplaceholder__", &self.measurement);
@@ -151,7 +150,7 @@ impl Client {
             .http_client
             .post(url)
             .header(header::ACCEPT, "application/csv")
-            .header(header::AUTHORIZATION, self.auth_header.as_str())
+            .header(header::AUTHORIZATION, self.auth_header.as_ref())
             .header(header::CONTENT_TYPE, "application/vnd.flux")
             .body(body)
             .send()
