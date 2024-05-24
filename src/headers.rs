@@ -1,5 +1,6 @@
+use axum::http::{HeaderName, HeaderValue};
+use axum_extra::headers::{self, Header};
 use chrono_tz::Tz;
-use headers::{Header, HeaderName, HeaderValue};
 
 static CLIENT_TIMEZONE_HEADER_NAME: HeaderName = HeaderName::from_static("client-timezone");
 

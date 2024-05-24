@@ -1,7 +1,8 @@
-use axum::extract::{Path, State, TypedHeader};
+use axum::extract::{Path, State};
 use axum::http::HeaderValue;
 use axum::response::{IntoResponse, Response};
 use axum::{routing, Json, Router};
+use axum_extra::TypedHeader;
 use bytes::{BufMut, BytesMut};
 use reqwest::{header, StatusCode};
 use tracing::{error, instrument};
@@ -253,7 +254,7 @@ async fn week_objective_handler(
 
 #[cfg(test)]
 mod tests {
-    use axum::body::Body;
+    use axum::body::{to_bytes, Body};
     use axum::http::Request;
     use chrono::Weekday;
     use tower::ServiceExt;
@@ -438,7 +439,7 @@ mod tests {
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::OK);
             assert_eq!(res.headers()["Content-Type"], "application/msgpack");
-            let body = hyper::body::to_bytes(res).await.unwrap();
+            let body = to_bytes(res.into_body(), 1024).await.unwrap();
             let expected = [
                 0x92, 0x92, 0x00, 0xc0, 0x92, 0xce, 0x1c, 0x19, 0x37, 0x48, 0x05,
             ];
@@ -523,7 +524,7 @@ mod tests {
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::OK);
             assert_eq!(res.headers()["Content-Type"], "application/json");
-            let body = hyper::body::to_bytes(res).await.unwrap();
+            let body = to_bytes(res.into_body(), 1024).await.unwrap();
             assert_eq!(body, "42.4242");
         }
     }
@@ -621,7 +622,7 @@ mod tests {
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::OK);
             assert_eq!(res.headers()["Content-Type"], "application/json");
-            let body = hyper::body::to_bytes(res).await.unwrap();
+            let body = to_bytes(res.into_body(), 1024).await.unwrap();
             assert_eq!(body, r#"[{"t":0,"v":0},{"t":123,"v":456}]"#);
         }
     }
@@ -718,7 +719,7 @@ mod tests {
             let res = app.oneshot(req).await.unwrap();
             assert_eq!(res.status(), StatusCode::OK);
             assert_eq!(res.headers()["Content-Type"], "application/json");
-            let body = hyper::body::to_bytes(res).await.unwrap();
+            let body = to_bytes(res.into_body(), 1024).await.unwrap();
             assert_eq!(body, r#"[{"t":0,"v":0},{"t":345,"v":678}]"#);
         }
     }
