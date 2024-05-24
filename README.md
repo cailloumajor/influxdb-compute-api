@@ -153,9 +153,9 @@ Options:
       --influxdb-measurement <INFLUXDB_MEASUREMENT>
           InfluxDB measurement [env: INFLUXDB_MEASUREMENT=]
   -v, --verbose...
-          More output per occurrence
+          Increase logging verbosity
   -q, --quiet...
-          Less output per occurrence
+          Decrease logging verbosity
   -h, --help
           Print help
 ```
