@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.4.4](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.3...v2.4.4) (2024-05-25)
+
+
+### Bug Fixes
+
+* **deps:** remove usage of arcstr ([5a1c276](https://github.com/cailloumajor/influxdb-compute-api/commit/5a1c2762ba6a51f520828271e18e13ef690dc894))
+* **deps:** update axum and reqwest ([019fdc5](https://github.com/cailloumajor/influxdb-compute-api/commit/019fdc5ad0947ca7a6e11c82913ee69cfed342db))
+* **deps:** update rust crate anyhow to v1.0.86 ([7f88b66](https://github.com/cailloumajor/influxdb-compute-api/commit/7f88b669bab691de72851f2902448d6abd756af4))
+* **deps:** update rust crate arcstr to v1.2.0 ([ec081ef](https://github.com/cailloumajor/influxdb-compute-api/commit/ec081ef90d7b786439c9a69145494fc80f4e6707))
+* **deps:** update rust crate bytes to v1.6.0 ([5736ce5](https://github.com/cailloumajor/influxdb-compute-api/commit/5736ce5f4747943ab1aa69aae23e076c1bba69fb))
+* **deps:** update rust crate chrono to v0.4.38 ([44081e9](https://github.com/cailloumajor/influxdb-compute-api/commit/44081e92fd81727e91cf44668e073cbfb374da9e))
+* **deps:** update rust crate chrono-tz to 0.9.0 ([eae52b5](https://github.com/cailloumajor/influxdb-compute-api/commit/eae52b5dbcd38cb936bb82b281edeeaba355766e))
+* **deps:** update rust crate clap to v4.5.4 ([55eff13](https://github.com/cailloumajor/influxdb-compute-api/commit/55eff13c72bf4f967f5d4e20e92a572e0045de7e))
+* **deps:** update rust crate clap-verbosity-flag to v2.2.0 ([388a4ca](https://github.com/cailloumajor/influxdb-compute-api/commit/388a4cae7f281dd47777cd8b55a0ed68df41821b))
+* **deps:** update rust crate csv-async to v1.3.0 ([dab0007](https://github.com/cailloumajor/influxdb-compute-api/commit/dab0007ce4271ae621d039d7a8e654d3ca7633a6))
+* **deps:** update rust crate futures-util to v0.3.30 ([1c21b67](https://github.com/cailloumajor/influxdb-compute-api/commit/1c21b678a287cb34c2bfcb203845f27ef9a93aed))
+* **deps:** update rust crate rmp-serde to v1.3.0 ([dc1e882](https://github.com/cailloumajor/influxdb-compute-api/commit/dc1e8826aed07be299ad73adf1b165d127e81b5c))
+* **deps:** update rust crate serde to v1.0.202 ([74012f8](https://github.com/cailloumajor/influxdb-compute-api/commit/74012f879a6a9b9141a8f19f6408685ea9b30721))
+* **deps:** update rust crate tokio to v1.37.0 ([860156f](https://github.com/cailloumajor/influxdb-compute-api/commit/860156f4ce422c1856eb26e098472680a88e601d))
+* **deps:** update rust crate tokio-util to v0.7.11 ([9a2deb2](https://github.com/cailloumajor/influxdb-compute-api/commit/9a2deb2a3bfcd67863c973428f2b88e60ecbdbad))
+* **deps:** update rust crate url to v2.5.0 ([c4cd1cd](https://github.com/cailloumajor/influxdb-compute-api/commit/c4cd1cd6e68480a588cbb8fadab8008b420b4612))
+* **deps:** update rust docker tag to v1.78.0 ([657db16](https://github.com/cailloumajor/influxdb-compute-api/commit/657db16c44e4ea3ce5802131bd5e29e176b53f5e))
+* **deps:** update tokio-tracing monorepo ([611a6d2](https://github.com/cailloumajor/influxdb-compute-api/commit/611a6d26a935ec58b460cee2e2f4a78c64055aac))
+* **deps:** update tonistiigi/xx docker tag to v1.4.0 ([ffce3f2](https://github.com/cailloumajor/influxdb-compute-api/commit/ffce3f25f4bc6f51f731766523e18edf0d1f74d0))
+
 ## [2.4.3](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.2...v2.4.3) (2023-10-19)
 
 
