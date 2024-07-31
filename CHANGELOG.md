@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.5](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.4...v2.4.5) (2024-07-31)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate reqwest to v0.12.5 ([2987b1a](https://github.com/cailloumajor/influxdb-compute-api/commit/2987b1a5aaa83bb52359a56649ceef01d36d810f))
+
 ## [2.4.4](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.3...v2.4.4) (2024-05-25)
 
 
