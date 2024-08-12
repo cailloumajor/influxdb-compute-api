@@ -17,8 +17,7 @@
     },
     {
       "matchDepTypes": ["dev-dependencies"],
-      "automerge": true,
-      "automergeType": "branch"
+      "automerge": true
     }
   ]
 }
