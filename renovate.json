@@ -4,6 +4,11 @@
     "config:base"
   ],
   "semanticCommits": "enabled",
+  "automergeType": "branch",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
   "packageRules": [
     {
       "matchPackageNames": ["rust", "tonistiigi/xx"],
