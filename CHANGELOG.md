@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.4.5](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.4...v2.4.5) (2024-09-28)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate chrono-tz to 0.10 ([03b2793](https://github.com/cailloumajor/influxdb-compute-api/commit/03b2793f46be336fcedcfcc4d2711164900046a5))
+* **deps:** update rust crate reqwest to v0.12.5 ([2987b1a](https://github.com/cailloumajor/influxdb-compute-api/commit/2987b1a5aaa83bb52359a56649ceef01d36d810f))
+* **deps:** update Rust docker tag to bookworm ([88cc5f1](https://github.com/cailloumajor/influxdb-compute-api/commit/88cc5f1e3aa4399ca520cad72e5e95cfc19ff322))
+* **deps:** update rust docker tag to v1.80.1 ([98f693d](https://github.com/cailloumajor/influxdb-compute-api/commit/98f693d28a69f54e86b1ef65b17da3e372687a46))
+* **deps:** update rust docker tag to v1.81.0 ([d8637a9](https://github.com/cailloumajor/influxdb-compute-api/commit/d8637a9d866fe4c8cae43b160067c63c4eb8ad40))
+* **deps:** update tonistiigi/xx docker tag to v1.5.0 ([eb616e6](https://github.com/cailloumajor/influxdb-compute-api/commit/eb616e6633a676af253976c2e31daa7959f91e1c))
+
 ## [2.4.4](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.3...v2.4.4) (2024-05-25)
 
 
