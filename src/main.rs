@@ -15,11 +15,8 @@ mod config_api;
 mod headers;
 mod http_api;
 mod influxdb;
-mod level_filter;
 mod production_objective;
 mod time;
-
-use level_filter::VerbosityLevelFilter;
 
 #[derive(Parser)]
 struct Args {
@@ -50,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     tracing_subscriber::fmt()
-        .with_max_level(VerbosityLevelFilter::from(&args.verbose))
+        .with_max_level(args.verbose.tracing_level())
         .init();
 
     LogTracer::init_with_filter(args.verbose.log_level_filter())?;
