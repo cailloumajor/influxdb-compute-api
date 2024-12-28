@@ -10,7 +10,7 @@ anyhow = "1.0"
 axum-extra = { version = "0.9", features = [ "typed-header" ] }
 bytes = "1.5"
 chrono-tz = "0.10"
-clap-verbosity-flag = "3.0"
+clap-verbosity-flag = { version = "3.0", features = [ "tracing" ] }
 csv-async = "1.2"
 futures-util = { version = "0.3", features = [ "io" ] }
 humantime = "2.1"
