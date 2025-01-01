@@ -24,7 +24,7 @@ tracing = "0.1"
 url = "2.4"
 
 [dependencies.axum]
-version = "0.7"
+version = "0.8"
 default-features = false
 features = [ "json", "http1", "tokio" ]
 
