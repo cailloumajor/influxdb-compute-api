@@ -1,14 +1,14 @@
 [package]
 name = "influxdb-compute-api"
 version = "2.4.5"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0"
-axum-extra = { version = "0.9", features = [ "typed-header" ] }
-bytes = "1.5"
+axum-extra = { version = "0.10", features = [ "typed-header" ] }
+bytes = "1.10"
 chrono-tz = "0.10"
 clap-verbosity-flag = { version = "3.0", features = [ "tracing" ] }
 csv-async = "1.2"
@@ -24,7 +24,7 @@ tracing = "0.1"
 url = "2.4"
 
 [dependencies.axum]
-version = "0.7"
+version = "0.8"
 default-features = false
 features = [ "json", "http1", "tokio" ]
 

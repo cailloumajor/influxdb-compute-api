@@ -1,10 +1,10 @@
 use axum::extract::{Path, State};
 use axum::http::HeaderValue;
 use axum::response::{IntoResponse, Response};
-use axum::{routing, Json, Router};
+use axum::{Json, Router, routing};
 use axum_extra::TypedHeader;
 use bytes::{BufMut, BytesMut};
-use reqwest::{header, StatusCode};
+use reqwest::{StatusCode, header};
 use tracing::{error, instrument};
 
 use crate::config_api::{
@@ -56,13 +56,13 @@ pub(crate) struct AppState {
 pub(crate) fn app(state: AppState) -> Router {
     Router::new()
         .route("/health", routing::get(health_handler))
-        .route("/timeline/:id", routing::get(timeline_handler))
-        .route("/performance/:id", routing::get(performance_handler))
+        .route("/timeline/{id}", routing::get(timeline_handler))
+        .route("/performance/{id}", routing::get(performance_handler))
         .route(
-            "/shift-objective/:id",
+            "/shift-objective/{id}",
             routing::get(shift_objective_handler),
         )
-        .route("/week-objective/:id", routing::get(week_objective_handler))
+        .route("/week-objective/{id}", routing::get(week_objective_handler))
         .with_state(state)
 }
 
@@ -254,12 +254,12 @@ async fn week_objective_handler(
 
 #[cfg(test)]
 mod tests {
-    use axum::body::{to_bytes, Body};
+    use axum::body::{Body, to_bytes};
     use axum::http::Request;
     use chrono::Weekday;
     use tower::ServiceExt;
 
-    use crate::channel::{roundtrip_channel, RoundtripSender};
+    use crate::channel::{RoundtripSender, roundtrip_channel};
     use crate::config_api::WeekStart;
     use crate::production_objective::ObjectivePoint;
 
@@ -364,7 +364,7 @@ mod tests {
     mod timeline_handler {
         use std::vec;
 
-        use crate::channel::{roundtrip_channel, RoundtripSender};
+        use crate::channel::{RoundtripSender, roundtrip_channel};
         use crate::influxdb::TimelineSlot;
 
         use super::*;
