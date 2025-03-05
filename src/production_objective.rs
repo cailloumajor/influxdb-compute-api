@@ -4,9 +4,9 @@ use chrono::{Datelike, Days, NaiveDateTime, NaiveTime};
 use chrono_tz::Tz;
 use serde::Serialize;
 use tokio::task::JoinHandle;
-use tracing::{error, info, info_span, Instrument};
+use tracing::{Instrument, error, info, info_span};
 
-use crate::channel::{roundtrip_channel, RoundtripSender};
+use crate::channel::{RoundtripSender, roundtrip_channel};
 use crate::config_api::WeekStart;
 use crate::time::{apply_time_spans, find_shift_bounds, utc_now};
 
@@ -62,7 +62,7 @@ impl NaivePoints {
         engaged: bool,
         pauses: &[(NaiveTime, NaiveTime)],
     ) {
-        let (mut last_datetime, mut quantity) = self.inner.last().unwrap();
+        let (mut last_datetime, mut quantity) = *self.inner.last().unwrap();
         let applied_pauses = engaged
             .then_some(apply_time_spans(last_datetime..shift_end, pauses))
             .unwrap_or_default();
@@ -102,20 +102,17 @@ impl ProductionObjective {
                 info!(status = "started");
 
                 while let Some((request, _, reply_tx)) = rx.recv().await {
-                    let ShiftObjectiveRequest {
-                        shift_start_times,
-                        pauses,
-                        timezone,
-                        target_cycle_time,
-                        target_efficiency,
-                    } = request;
-                    let shift_span = find_shift_bounds(&timezone, &shift_start_times);
+                    let shift_span =
+                        find_shift_bounds(&request.timezone, &request.shift_start_times);
                     let shift_start = shift_span.0.naive_local();
                     let shift_end = shift_span.1.naive_local();
-                    let mut naive_points =
-                        NaivePoints::new(shift_start, target_cycle_time, target_efficiency);
-                    naive_points.push_shift(shift_end, true, &pauses);
-                    let objective_points = naive_points.into_objective_data(timezone);
+                    let mut naive_points = NaivePoints::new(
+                        shift_start,
+                        request.target_cycle_time,
+                        request.target_efficiency,
+                    );
+                    naive_points.push_shift(shift_end, true, &request.pauses);
+                    let objective_points = naive_points.into_objective_data(request.timezone);
                     if reply_tx.send(objective_points).is_err() {
                         error!(kind = "response channel sending");
                     }
@@ -137,30 +134,22 @@ impl ProductionObjective {
                 info!(status = "started");
 
                 while let Some((request, _, reply_tx)) = rx.recv().await {
-                    let WeekObjectiveRequest {
-                        shift_start_times,
-                        shift_engaged,
-                        pauses,
-                        week_start,
-                        timezone,
-                        target_cycle_time,
-                        target_efficiency,
-                    } = request;
-                    let now_naive = utc_now().with_timezone(&timezone).date_naive();
+                    let now_naive = utc_now().with_timezone(&request.timezone).date_naive();
                     let week_start_day = {
                         let now_weekday = now_naive.weekday().num_days_from_monday();
-                        let week_start_weekday = week_start.day.num_days_from_monday();
+                        let week_start_weekday = request.week_start.day.num_days_from_monday();
                         let days_back = now_weekday - week_start_weekday;
                         now_naive - Days::new(days_back.into())
                     };
-                    let mut shifts_iter = shift_start_times
+                    let mut shifts_iter = request
+                        .shift_start_times
                         .iter()
                         .cycle()
                         .enumerate()
                         // The first member of the tuple item becomes the number of days to add.
-                        .map(|(i, shift_start)| (i / shift_start_times.len(), shift_start))
-                        .skip(week_start.shift_index)
-                        .zip(iter::once(true).chain(shift_engaged))
+                        .map(|(i, shift_start)| (i / request.shift_start_times.len(), shift_start))
+                        .skip(request.week_start.shift_index)
+                        .zip(iter::once(true).chain(request.shift_engaged))
                         .map(|((days_to_add, &shift_start_time), engaged)| {
                             let date_time = week_start_day
                                 .checked_add_days(Days::new(days_to_add as u64))
@@ -169,12 +158,15 @@ impl ProductionObjective {
                             (date_time, engaged)
                         });
                     let (first_datetime, _) = shifts_iter.next().unwrap();
-                    let mut naive_points =
-                        NaivePoints::new(first_datetime, target_cycle_time, target_efficiency);
+                    let mut naive_points = NaivePoints::new(
+                        first_datetime,
+                        request.target_cycle_time,
+                        request.target_efficiency,
+                    );
                     for (shift_end, engaged) in shifts_iter {
-                        naive_points.push_shift(shift_end, engaged, &pauses);
+                        naive_points.push_shift(shift_end, engaged, &request.pauses);
                     }
-                    let objective_points = naive_points.into_objective_data(timezone);
+                    let objective_points = naive_points.into_objective_data(request.timezone);
                     if reply_tx.send(objective_points).is_err() {
                         error!(kind = "response channel sending");
                     }

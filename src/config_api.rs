@@ -3,15 +3,15 @@ use std::time::{Duration, Instant};
 
 use chrono::{NaiveTime, Weekday};
 use clap::Args;
-use reqwest::{header, Client as HttpClient};
-use serde::de::DeserializeOwned;
+use reqwest::{Client as HttpClient, header};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, info_span, instrument, Instrument};
+use tracing::{Instrument, debug, error, info, info_span, instrument};
 use url::Url;
 
-use crate::channel::{roundtrip_channel, RoundtripSender};
+use crate::channel::{RoundtripSender, roundtrip_channel};
 
 const COMMON_CONFIG_PATH: &str = "common";
 

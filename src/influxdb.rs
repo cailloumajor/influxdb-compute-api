@@ -7,14 +7,14 @@ use chrono_tz::Tz;
 use clap::Args;
 use csv_async::AsyncReaderBuilder;
 use futures_util::TryStreamExt;
-use reqwest::{header, Client as HttpClient, StatusCode};
+use reqwest::{Client as HttpClient, StatusCode, header};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
-use tracing::{error, info, info_span, instrument, Instrument};
+use tracing::{Instrument, error, info, info_span, instrument};
 use url::Url;
 
-use crate::channel::{roundtrip_channel, RoundtripSender};
+use crate::channel::{RoundtripSender, roundtrip_channel};
 use crate::time::{apply_time_spans, find_shift_bounds};
 
 #[derive(Args)]
