@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.7](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.6...v2.4.7) (2025-03-08)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate tokio to v1.44.0 ([#207](https://github.com/cailloumajor/influxdb-compute-api/issues/207)) ([80f30f6](https://github.com/cailloumajor/influxdb-compute-api/commit/80f30f661780e533ca1ebe7418623ec1d67f5b50))
+
 ## [2.4.6](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.5...v2.4.6) (2025-03-05)
 
 
