@@ -6,8 +6,6 @@ services:
       - TZ=UTC
     ports:
       - 3000:3000
-    volumes:
-      - ./config-api/config.js:/usr/src/config.js:ro
 
   influxdb:
     image: influxdb:2.7
