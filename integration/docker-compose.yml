@@ -4,8 +4,6 @@ services:
     build: ./config-api
     environment:
       - TZ=UTC
-    ports:
-      - 3000:3000
 
   influxdb:
     image: influxdb:2.7

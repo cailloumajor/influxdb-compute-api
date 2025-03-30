@@ -99,6 +99,10 @@ if (import.meta.main) {
             return Response.json(partnerConfig)
         }
 
+        if (id === "status") {
+            return new Response(null, { status: 204 })
+        }
+
         return new Response("Not Found", { status: 404 })
     })
 }
