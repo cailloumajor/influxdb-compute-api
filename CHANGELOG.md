@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.8](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.7...v2.4.8) (2025-04-02)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate clap to v4.5.35 ([#216](https://github.com/cailloumajor/influxdb-compute-api/issues/216)) ([00da63e](https://github.com/cailloumajor/influxdb-compute-api/commit/00da63e705f639d6ff2ea9a0332d7adddbd32e4f))
+
 ## [2.4.7](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.6...v2.4.7) (2025-03-29)
 
 
