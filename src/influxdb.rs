@@ -172,7 +172,7 @@ impl Client {
 
         let reader = response
             .bytes_stream()
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+            .map_err(io::Error::other)
             .into_async_read();
 
         AsyncReaderBuilder::new()
