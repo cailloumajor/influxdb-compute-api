@@ -31,8 +31,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/git/db \
 # hadolint ignore=DL3006
 FROM gcr.io/distroless/cc-debian12
 
-WORKDIR /app
-
 COPY --from=builder /usr/src/app/bin/* /usr/local/bin/
 
 HEALTHCHECK CMD ["/usr/local/bin/healthcheck"]
