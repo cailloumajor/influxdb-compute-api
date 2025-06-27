@@ -63,9 +63,11 @@ impl NaivePoints {
         pauses: &[(NaiveTime, NaiveTime)],
     ) {
         let (mut last_datetime, mut quantity) = *self.inner.last().unwrap();
-        let applied_pauses = engaged
-            .then_some(apply_time_spans(last_datetime..shift_end, pauses))
-            .unwrap_or_default();
+        let applied_pauses = if engaged {
+            apply_time_spans(last_datetime..shift_end, pauses)
+        } else {
+            Default::default()
+        };
         let interest_points = applied_pauses
             .into_iter()
             .flat_map(|(pause_start, pause_end)| [(pause_start, true), (pause_end, false)])
@@ -73,9 +75,9 @@ impl NaivePoints {
         for (date_time, produced) in interest_points {
             let elapsed = (date_time - last_datetime).num_seconds() as f32;
             last_datetime = date_time;
-            quantity += produced
-                .then_some((elapsed * self.production_rate).floor() as u16)
-                .unwrap_or_default();
+            if produced {
+                quantity += (elapsed * self.production_rate).floor() as u16;
+            }
             self.inner.push((date_time, quantity));
         }
     }
