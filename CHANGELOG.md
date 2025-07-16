@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.9](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.8...v2.4.9) (2025-07-16)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate chrono-tz to v0.10.4 ([c6171f9](https://github.com/cailloumajor/influxdb-compute-api/commit/c6171f98a62857bca2105c3b51414da2f033356b))
+* **deps:** update rust crate clap to v4.5.41 ([f113d64](https://github.com/cailloumajor/influxdb-compute-api/commit/f113d641c33f19274738fd46611d492cb70875d1))
+
 ## [2.4.8](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.7...v2.4.8) (2025-07-07)
 
 
