@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.4.9](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.8...v2.4.9) (2025-08-14)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate anyhow to v1.0.99 ([2590324](https://github.com/cailloumajor/influxdb-compute-api/commit/259032431f9ade4c4ef9a983db6bfd1b5dc4779c))
+* **deps:** update rust crate chrono-tz to v0.10.4 ([c6171f9](https://github.com/cailloumajor/influxdb-compute-api/commit/c6171f98a62857bca2105c3b51414da2f033356b))
+* **deps:** update rust crate clap to v4.5.41 ([f113d64](https://github.com/cailloumajor/influxdb-compute-api/commit/f113d641c33f19274738fd46611d492cb70875d1))
+* **deps:** update rust crate clap to v4.5.42 ([2f5e583](https://github.com/cailloumajor/influxdb-compute-api/commit/2f5e58397cd903ae4ef946a45d641311dec5cf80))
+* **deps:** update rust crate clap to v4.5.43 ([7bec8f3](https://github.com/cailloumajor/influxdb-compute-api/commit/7bec8f356be338dc9261021e20d2e2ac17bf5a87))
+* **deps:** update rust crate clap to v4.5.44 ([e262d10](https://github.com/cailloumajor/influxdb-compute-api/commit/e262d100c4ded3983eb80bed8c0059a31f0c56e8))
+* **deps:** update rust crate clap to v4.5.45 ([80d88bf](https://github.com/cailloumajor/influxdb-compute-api/commit/80d88bf01d06b5c70d3f79568447e05b21b2777e))
+* **deps:** update rust crate reqwest to v0.12.23 ([08d3de5](https://github.com/cailloumajor/influxdb-compute-api/commit/08d3de569ccbcce9a7eefa3a6201fcf9b3ffa187))
+* **deps:** update rust crate tokio to v1.47.1 ([#240](https://github.com/cailloumajor/influxdb-compute-api/issues/240)) ([e538ef0](https://github.com/cailloumajor/influxdb-compute-api/commit/e538ef033b7e39d06c8762edfc65146b1c6a8317))
+* **deps:** update rust crate tokio-util to v0.7.16 ([0df8c09](https://github.com/cailloumajor/influxdb-compute-api/commit/0df8c095a1461bcd1da061d397a91c6820ad7161))
+* **deps:** update rust docker tag to v1.89.0 ([#243](https://github.com/cailloumajor/influxdb-compute-api/issues/243)) ([6deed4d](https://github.com/cailloumajor/influxdb-compute-api/commit/6deed4de2c86b383ee822775808e4e2e81515069))
+
 ## [2.4.8](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.7...v2.4.8) (2025-07-07)
 
 
