@@ -131,7 +131,7 @@ Timeline data consists of an array of arrays. Inner arrays contain following com
 
 ## Usage
 
-```ShellSession
+```console
 $ influxdb-compute-api --help
 Usage: influxdb-compute-api [OPTIONS] --config-api-url <CONFIG_API_URL> --influxdb-api-token <INFLUXDB_API_TOKEN> --influxdb-org <INFLUXDB_ORG> --influxdb-bucket <INFLUXDB_BUCKET> --influxdb-measurement <INFLUXDB_MEASUREMENT>
 
@@ -158,4 +158,5 @@ Options:
           Decrease logging verbosity
   -h, --help
           Print help
+
 ```

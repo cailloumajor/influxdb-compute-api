@@ -61,3 +61,4 @@ features = [ "ansi", "fmt", "parking_lot", "smallvec", "std" ]
 indoc = "2.0"
 mockito = "1.2"
 tower = { version = "0.5", default-features = false, features = [ "util" ] }
+trycmd = "0.15.10"
