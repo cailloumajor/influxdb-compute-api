@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.4.10](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.9...v2.4.10) (2025-09-11)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate chrono to v0.4.42 ([00d2b71](https://github.com/cailloumajor/influxdb-compute-api/commit/00d2b711413a27a85d1dea19745ff69cfcf95cc1))
+* **deps:** update rust crate clap to v4.5.46 ([9b009d9](https://github.com/cailloumajor/influxdb-compute-api/commit/9b009d994e79d6fef43c6b62f7b1644d7087e635))
+* **deps:** update rust crate clap to v4.5.47 ([5bec880](https://github.com/cailloumajor/influxdb-compute-api/commit/5bec88018d12e464cea47399e6e9e53b87266fb0))
+* **deps:** update rust crate clap-verbosity-flag to v3.0.4 ([a804d37](https://github.com/cailloumajor/influxdb-compute-api/commit/a804d37be0ad5015ebc24f6733a6d5c18597c441))
+* **deps:** update rust crate humantime to v2.3.0 ([de3a3f8](https://github.com/cailloumajor/influxdb-compute-api/commit/de3a3f8a30a8b799f9b535b99ef27b6b6748e9c7))
+* **deps:** update rust crate tracing-subscriber to v0.3.20 ([eb3cc74](https://github.com/cailloumajor/influxdb-compute-api/commit/eb3cc746ead139e4c22edc6d01ba5cab849847be))
+* **deps:** update rust crate url to v2.5.6 ([e2dcb40](https://github.com/cailloumajor/influxdb-compute-api/commit/e2dcb40c2d0257212dd15f0323b70ac192de1999))
+* **deps:** update rust crate url to v2.5.7 ([17f0ea0](https://github.com/cailloumajor/influxdb-compute-api/commit/17f0ea0701d8692238bdc01adf2175113b941dda))
+* **deps:** update tonistiigi/xx docker tag to v1.7.0 ([3ef2230](https://github.com/cailloumajor/influxdb-compute-api/commit/3ef22304c785ab6cc3a0813ae87325451d35ddf6))
+
 ## [2.4.9](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.8...v2.4.9) (2025-08-14)
 
 
