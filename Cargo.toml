@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
-axum-extra = { version = "0.10", features = [ "typed-header" ] }
+axum-extra = { version = "0.12", features = [ "typed-header" ] }
 bytes = "1.10"
 chrono-tz = "0.10"
 clap-verbosity-flag = { version = "3.0", features = [ "tracing" ] }
