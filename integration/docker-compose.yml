@@ -28,7 +28,7 @@ services:
       - INFLUXDB_MEASUREMENT=integration_tests
 
   api-test:
-    image: ghcr.io/orange-opensource/hurl:7.0.0
+    image: ghcr.io/orange-opensource/hurl:7.1.0
     command:
       - --test
       - --variable
