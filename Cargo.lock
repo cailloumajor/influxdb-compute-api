@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb-compute-api"
-version = "2.4.9"
+version = "2.4.10"
 dependencies = [
  "anyhow",
  "axum",
