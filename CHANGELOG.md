@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.11](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.10...v2.4.11) (2026-01-01)
+
+
+### Bug Fixes
+
+* **deps:** specify full dependencies versions ([a0db708](https://github.com/cailloumajor/influxdb-compute-api/commit/a0db70860a4499982ecb569a7186a51af54ea2e4))
+
 ## [2.4.10](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.9...v2.4.10) (2025-12-14)
 
 
