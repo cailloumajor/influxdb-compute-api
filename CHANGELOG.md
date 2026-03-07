@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.4.12](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.11...v2.4.12) (2026-03-07)
+
+
+### Bug Fixes
+
+* **deps:** update rust docker tag to v1.93.0 ([e027b55](https://github.com/cailloumajor/influxdb-compute-api/commit/e027b558e1b78352d61caa581aed674745c1b20b))
+* **deps:** update rust docker tag to v1.93.1 ([6055643](https://github.com/cailloumajor/influxdb-compute-api/commit/6055643238a6afecf3cb621c847e01bba1ba4bfb))
+* **deps:** update rust docker tag to v1.94.0 ([0a42fb2](https://github.com/cailloumajor/influxdb-compute-api/commit/0a42fb2de602e447e03ded591ed9c79c16797650))
+
 ## [2.4.11](https://github.com/cailloumajor/influxdb-compute-api/compare/v2.4.10...v2.4.11) (2026-01-01)
 
 
